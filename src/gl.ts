@@ -476,7 +476,7 @@ void main(){
   vUv = uv;
   vec3 p = position;
   float L = length(p);
-  float r = mix(0.985, L, uGrow);          // the loop rises out of the surface
+  float r = mix(0.93, L, uGrow);           // the loop rises out of (and sinks back into) the surface
   p = p/L*r;
   // eruption: the top lifts away first, the loop swells as it goes
   float top = smoothstep(0.0, 0.25, L - 1.0);
@@ -573,6 +573,7 @@ function makeStar(b: Body, spec: StarSpec): BodyObj {
   const hotStar = tempK > 7000
   const energy = hotStar ? 1 : b.id === 'sun' ? 0.6 : 0
   const flowSpeed = 1 + 1.8 * energy
+  const giant = flH > 0.3
   type FU = Record<'uGrow' | 'uReveal' | 'uDrift' | 'uBright' | 'uTime', { value: number }>
   type Slot = { g: THREE.Group; u: FU[]; t0: number; D: number; erupt: boolean; hm: number; gap: number }
   const slots: Slot[] = []
@@ -636,24 +637,37 @@ function makeStar(b: Body, spec: StarSpec): BodyObj {
     sl.g.quaternion.setFromUnitVectors(Y, dv).multiply(qT.setFromAxisAngle(Y, r1() * Math.PI * 2))
   }
   const spawn = (sl: Slot, now: number, pre: number) => {
-    sl.erupt = r1() < 0.16 + 0.22 * energy
-    const dk = 1 - 0.62 * energy   // hot stars: cycles of a few seconds
-    sl.D = (sl.erupt ? 18 + r1() * 8 : 9 + r1() * 7) * dk
-    sl.hm = sl.erupt ? 1.2 : 0.8 + r1() * 0.4
-    sl.t0 = now - pre * sl.D
-    sl.gap = (0.6 + r1() * 3.5) * (1 - 0.75 * energy)
+    sl.erupt = r1() < 0.14 + 0.16 * energy
+    const dk = (1 - 0.5 * energy) * (giant ? 1.25 : 1)   // hot stars: cycles of a few seconds
+    sl.D = (sl.erupt ? 10 + r1() * 4 : 7 + r1() * 4) * dk
+    sl.hm = sl.erupt ? 1.2 : 0.75 + r1() * 0.45
+    // idle at zero for 1-6s before the next one (hot stars shorter, supergiants longer)
+    sl.gap = (1 + r1() * 5) * (1 - 0.5 * energy) * (giant ? 1.4 : 1)
+    // pre in [0,1) is a phase through the whole cycle (life + idle), so some slots start idle
+    const ph = pre * (sl.D + sl.gap)
+    sl.t0 = now - ph
     place(sl)
   }
   let flInit = false
   const setPhase = (sl: Slot, u: number, tt: number) => {
-    let grow = 1, reveal = 1.2, drift = 0, bright = 1
+    // grow out of the surface (0-40%), hold with flow (40-60%), sink back in (60-100%)
+    // or, for an eruption, detach and drift away while fading. height really goes 0 -> 1 -> 0;
+    // below the surface the star's disc hides the loop, so it rises from and sinks into the limb.
+    let grow = 0, drift = 0, bright = 1
+    const reveal = 1.2
     const ease = (x: number) => x * x * (3 - 2 * x)
-    if (u < 0.3) { const e = ease(u / 0.3); reveal = e * 1.2; grow = 0.3 + 0.5 * e; bright = 0.35 + 0.65 * e }
-    else if (u < 0.7) { const k = (u - 0.3) / 0.4; grow = 0.8 + 0.3 * ease(k); bright = 1 + 0.55 * Math.exp(-Math.pow((k - 0.45) / 0.22, 2)) }
-    else {
-      const k = Math.min(1, (u - 0.7) / 0.3)
-      if (sl.erupt) { grow = 1.1; drift = 0.9 * k * k * sl.hm * flH * 6; bright = 1.1 * (1 - k) }
-      else { grow = 1.1 - 0.35 * k; reveal = 1.2 * (1 - ease(k)); bright = 1 - 0.5 * k }
+    if (u < 0.4) {
+      const k = u / 0.4
+      grow = ease(Math.max(0, (k - 0.08) / 0.92))
+      bright = 1 + 0.6 * Math.exp(-Math.pow(k / 0.12, 2))   // footpoints flash first
+    } else if (u < 0.6) {
+      const k = (u - 0.4) / 0.2
+      grow = 1 + 0.06 * Math.sin(k * Math.PI)
+      bright = 1 + 0.45 * Math.sin(k * Math.PI)
+    } else {
+      const k = Math.min(1, (u - 0.6) / 0.4)
+      if (sl.erupt) { grow = 1.05; drift = 1.1 * k * k * sl.hm * flH * 6; bright = 1.1 * (1 - ease(k)) }
+      else { grow = 1 - ease(k); bright = 1 - 0.25 * k }
     }
     // flicker / brightening pulses, strongest on the hot stars
     if (energy > 0) bright *= (1 + 0.7 * energy) * (1 + energy * (0.22 * Math.sin(tt * 7.3 + sl.hm * 11) + 0.14 * Math.sin(tt * 13.1 + sl.D) + 0.1 * Math.sin(tt * 23.7)))
@@ -683,18 +697,23 @@ function makeStar(b: Body, spec: StarSpec): BodyObj {
     const tt = reduced ? 0 : t
     uniforms.uTime.value = tt
     gu.uTime.value = tt
-    if (!flInit) { flInit = true; slots.forEach((sl, k) => spawn(sl, t, reduced ? 0.45 : (k + r1() * 0.7) / slots.length)) }
-    for (const sl of slots) {
-      if (reduced) { sl.g.visible = true; setPhase(sl, 0.5, 0); continue }
+    if (!flInit) { flInit = true; slots.forEach((sl) => spawn(sl, t, r1())) }
+    slots.forEach((sl, k) => {
+      if (reduced) {
+        // reduced motion: flares mostly retracted, one low static loop
+        sl.g.visible = k === 0
+        if (k === 0) setPhase(sl, 0.12, 0)
+        return
+      }
       const u = (t - sl.t0) / sl.D
       if (u >= 1) {
         sl.g.visible = false
         if ((u - 1) * sl.D > sl.gap) spawn(sl, t, 0)
-        continue
+        return
       }
-      sl.g.visible = u >= 0
       setPhase(sl, Math.max(0, u), tt)
-    }
+      sl.g.visible = u >= 0 && (sl.u[0].uGrow.value > 0.01 || sl.u[0].uDrift.value > 0)
+    })
     uniforms.uPx.value = rs * GLScene.dpr
     if (!reduced) spinG.rotation.y += dt * 0.012 * SPIN_K * (b.id === 'sun' ? PLANET_SPIN : 1) * auto
   }
