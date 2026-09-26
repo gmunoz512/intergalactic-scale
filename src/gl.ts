@@ -183,6 +183,10 @@ function track(obj: BodyObj, m: THREE.Material & { opacity: number }) {
 const SPIN_K = 1.1
 /** planets, moons and the sun turn 2x faster again on top of that */
 const PLANET_SPIN = 2
+/** planets / moons / dwarf planets / exoplanets only (not the sun): a further 1.25x */
+const PLANET_ONLY_SPIN = 1.25
+/** every flare time scale (cycle, idle gaps, plasma flow, flicker, eruption drift) runs this many times slower */
+const FLARE_SLOW = 2
 
 // ---------- texture cache ----------
 const loader = new THREE.TextureLoader()
@@ -276,8 +280,8 @@ function makePlanet(b: Body, spec: PlanetSpec): BodyObj {
   }
   obj.update = (_t, dt, _rs, reduced, auto) => {
     if (reduced) return
-    mesh.rotation.y += dt * (spec.spin ?? 0.03) * SPIN_K * PLANET_SPIN * auto
-    if (clouds) clouds.rotation.y += dt * (spec.spin ?? 0.03) * SPIN_K * PLANET_SPIN * (0.25 + 1.0 * auto)
+    mesh.rotation.y += dt * (spec.spin ?? 0.03) * SPIN_K * PLANET_SPIN * PLANET_ONLY_SPIN * auto
+    if (clouds) clouds.rotation.y += dt * (spec.spin ?? 0.03) * SPIN_K * PLANET_SPIN * PLANET_ONLY_SPIN * (0.25 + 1.0 * auto)
   }
   return obj
 }
@@ -697,7 +701,9 @@ function makeStar(b: Body, spec: StarSpec): BodyObj {
     const tt = reduced ? 0 : t
     uniforms.uTime.value = tt
     gu.uTime.value = tt
-    if (!flInit) { flInit = true; slots.forEach((sl) => spawn(sl, t, r1())) }
+    // flare clock: slowed uniformly so every flare timescale doubles
+    const ft = t / FLARE_SLOW, ftt = tt / FLARE_SLOW
+    if (!flInit) { flInit = true; slots.forEach((sl) => spawn(sl, ft, r1())) }
     slots.forEach((sl, k) => {
       if (reduced) {
         // reduced motion: flares mostly retracted, one low static loop
@@ -705,13 +711,13 @@ function makeStar(b: Body, spec: StarSpec): BodyObj {
         if (k === 0) setPhase(sl, 0.12, 0)
         return
       }
-      const u = (t - sl.t0) / sl.D
+      const u = (ft - sl.t0) / sl.D
       if (u >= 1) {
         sl.g.visible = false
-        if ((u - 1) * sl.D > sl.gap) spawn(sl, t, 0)
+        if ((u - 1) * sl.D > sl.gap) spawn(sl, ft, 0)
         return
       }
-      setPhase(sl, Math.max(0, u), tt)
+      setPhase(sl, Math.max(0, u), ftt)
       sl.g.visible = u >= 0 && (sl.u[0].uGrow.value > 0.01 || sl.u[0].uDrift.value > 0)
     })
     uniforms.uPx.value = rs * GLScene.dpr
