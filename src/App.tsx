@@ -196,7 +196,6 @@ export default function App() {
 
   // wheel: one slide per gesture, trackpad-momentum safe
   useEffect(() => {
-    const el = stageRef.current!
     let acc = 0
     let lastEvt = 0
     let locked = false
@@ -217,8 +216,9 @@ export default function App() {
         lockedAt = now
       }
     }
-    el.addEventListener('wheel', onWheel, { passive: false })
-    return () => el.removeEventListener('wheel', onWheel)
+    // on the whole window, so scrolling over the black margins works too
+    addEventListener('wheel', onWheel, { passive: false })
+    return () => removeEventListener('wheel', onWheel)
   }, [step])
 
   // drag / swipe
