@@ -5,7 +5,7 @@ const BASE = import.meta.env.BASE_URL + 'tex/'
 
 // ---------- per-body visual specs ----------
 type PlanetSpec = { type: 'planet'; tex: string; hi?: boolean; clouds?: boolean; ring?: boolean; atmo?: [number, number, number, number]; tilt?: number; spin?: number }
-type StarSpec = { type: 'star'; scale: number; contrast: number; speck: number; spots: number; spotSize: number; active: number; actSize: number; glow: number; flame: number; proms: [number, number, number, number, number][] }
+type StarSpec = { type: 'star'; scale: number; contrast: number; speck: number; spots: number; spotSize: number; active: number; actSize: number; glow: number; flame: number; proms?: [number, number, number, number, number][] }
 type ImageSpec = { type: 'image'; src: string; fill: number; aspect: number; mask: [number, number]; sat?: number; gain?: number }
 type ProcSpec = { type: 'proc'; kind: 'heliosphere' | 'oort' | 'group' | 'supercluster' | 'laniakea' | 'universe' }
 type GalaxyPal = { gold: V3; grey: V3; blue: V3; dust: V3; knot: V3; warm: V3; warmR: number; knotAmt: number; gain?: number }
@@ -32,7 +32,7 @@ const SPECS: Record<string, Spec> = {
   aldebaran: { type: 'star', scale: 4.0, contrast: 0.5, speck: 0.5, spots: 0, spotSize: 0, active: 3, actSize: 0.09, glow: 0.95, flame: 0.75, proms: [[0.55, -1.45, 0.38, 0.28, 1.55], [-0.5, 1.5, 0.32, 0.24, 1.75]] },
   rigel: { type: 'star', scale: 7, contrast: 0.16, speck: 0.3, spots: 0, spotSize: 0, active: 2, actSize: 0.06, glow: 1.05, flame: 0.4, proms: [[-0.4, 1.5, 0.12, 0.08, 1.85]] },
   antares: { type: 'star', scale: 3.4, contrast: 0.55, speck: 0.45, spots: 0, spotSize: 0, active: 3, actSize: 0.1, glow: 0.95, flame: 0.85, proms: [[0.6, -1.45, 0.51, 0.38, 1.45], [-0.55, 1.5, 0.46, 0.34, 1.65], [0.05, 1.55, 0.27, 0.2, 1.65]] },
-  betelgeuse: { type: 'star', scale: 3.6, contrast: 0.55, speck: 0.55, spots: 0, spotSize: 0, active: 4, actSize: 0.1, glow: 1.0, flame: 0.9, proms: [[0.62, -1.42, 0.57, 0.42, 1.8], [-0.6, 1.48, 0.51, 0.38, 1.75]] },
+  betelgeuse: { type: 'star', scale: 5, contrast: 0.45, speck: 0.55, spots: 0, spotSize: 0, active: 4, actSize: 0.15, glow: 1.0, flame: 0.9, proms: [[0.62, -1.42, 0.57, 0.42, 1.8], [-0.6, 1.48, 0.51, 0.38, 1.75]] },
   uyscuti: { type: 'star', scale: 3.3, contrast: 0.55, speck: 0.45, spots: 0, spotSize: 0, active: 3, actSize: 0.1, glow: 0.95, flame: 0.85, proms: [[0.5, -1.5, 0.54, 0.4, 1.55], [-0.6, 1.45, 0.49, 0.36, 1.65], [-0.1, -1.55, 0.3, 0.22, 1.65]] },
   heliosphere: { type: 'proc', kind: 'heliosphere' },
   oort: { type: 'proc', kind: 'oort' },
@@ -254,24 +254,36 @@ function makePlanet(b: Body, spec: PlanetSpec): BodyObj {
 
 // ---------- stars ----------
 type V3 = [number, number, number]
-type StarLook = { deep: V3; mid: V3; bright: V3; hot: V3; prom: V3 }
+type StarLook = { deep: V3; mid: V3; bright: V3; hot: V3; prom: V3; glow?: V3 }
+/** granulation: [cells per radius, strength, limb darkening (edge brightness)] */
+const GRAN: Record<string, [number, number, number]> = {
+  sun: [44, 0.45, 0.6], sirius: [48, 0.55, 0.62], rigel: [46, 0.55, 0.62], pollux: [30, 0.3, 0.75], arcturus: [30, 0.3, 0.75], aldebaran: [28, 0.3, 0.78],
+  antares: [17, 0.2, 0.88], betelgeuse: [16, 0.18, 0.9], uyscuti: [16, 0.2, 0.88],
+}
 
 /** hand-tuned ramps per star (deep lanes -> mid -> bright -> white-hot), by type */
 const LOOKS: Record<string, StarLook> = {
-  sun: { deep: [0.8, 0.42, 0.08], mid: [1.0, 0.8, 0.38], bright: [1.0, 0.93, 0.68], hot: [1.0, 0.98, 0.9], prom: [0.95, 0.3, 0.08] },
-  sirius: { deep: [0.58, 0.68, 0.95], mid: [0.74, 0.84, 1.0], bright: [0.92, 0.96, 1.0], hot: [1.0, 1.0, 1.0], prom: [0.55, 0.62, 1.0] },
+  sun: { deep: [0.92, 0.3, 0.03], mid: [1.0, 0.72, 0.26], bright: [1.0, 0.88, 0.5], hot: [1.0, 0.97, 0.86], prom: [0.95, 0.3, 0.08], glow: [1.0, 0.36, 0.08] },
+  sirius: { deep: [0.14, 0.36, 1.0], mid: [0.5, 0.74, 1.0], bright: [0.86, 0.97, 1.0], hot: [0.97, 1.0, 1.0], prom: [0.45, 0.6, 1.0], glow: [0.1, 0.5, 1.0] },
   pollux: { deep: [0.6, 0.17, 0.03], mid: [1.0, 0.5, 0.09], bright: [1.0, 0.76, 0.3], hot: [1.0, 0.95, 0.78], prom: [0.8, 0.18, 0.04] },
   arcturus: { deep: [0.6, 0.15, 0.03], mid: [1.0, 0.47, 0.08], bright: [1.0, 0.73, 0.27], hot: [1.0, 0.94, 0.76], prom: [0.78, 0.16, 0.04] },
   aldebaran: { deep: [0.55, 0.1, 0.02], mid: [1.0, 0.38, 0.06], bright: [1.0, 0.64, 0.2], hot: [1.0, 0.92, 0.7], prom: [0.72, 0.12, 0.03] },
-  rigel: { deep: [0.46, 0.58, 0.95], mid: [0.6, 0.74, 1.0], bright: [0.84, 0.91, 1.0], hot: [1.0, 1.0, 1.0], prom: [0.5, 0.58, 1.0] },
+  rigel: { deep: [0.16, 0.34, 0.98], mid: [0.5, 0.7, 1.0], bright: [0.84, 0.94, 1.0], hot: [0.97, 1.0, 1.0], prom: [0.45, 0.58, 1.0], glow: [0.12, 0.48, 1.0] },
   antares: { deep: [0.42, 0.04, 0.02], mid: [0.9, 0.2, 0.04], bright: [1.0, 0.46, 0.12], hot: [1.0, 0.82, 0.55], prom: [0.6, 0.06, 0.02] },
-  betelgeuse: { deep: [0.78, 0.2, 0.02], mid: [1.0, 0.46, 0.05], bright: [1.0, 0.76, 0.22], hot: [1.0, 0.95, 0.72], prom: [0.7, 0.1, 0.03] },
+  betelgeuse: { deep: [0.8, 0.26, 0.03], mid: [1.0, 0.54, 0.09], bright: [1.0, 0.82, 0.32], hot: [1.0, 0.95, 0.72], prom: [0.7, 0.1, 0.03] },
   uyscuti: { deep: [0.5, 0.07, 0.02], mid: [0.96, 0.3, 0.04], bright: [1.0, 0.58, 0.14], hot: [1.0, 0.88, 0.62], prom: [0.62, 0.08, 0.02] },
+}
+
+/** flares per star: [how many alive, footpoint span (rad), loop height (radii)] */
+const FLARES: Record<string, [number, number, number]> = {
+  sun: [5, 0.22, 0.17], sirius: [3, 0.1, 0.07], rigel: [3, 0.11, 0.08],
+  pollux: [4, 0.3, 0.22], arcturus: [4, 0.32, 0.24], aldebaran: [4, 0.36, 0.27],
+  antares: [5, 0.55, 0.42], betelgeuse: [5, 0.6, 0.46], uyscuti: [5, 0.55, 0.42],
 }
 
 const STAR_FRAG = /* glsl */ `
 uniform vec3 uDeep, uMid, uBright, uHot;
-uniform float uTime, uScale, uContrast, uPx, uSeed, opacity, uRim, uSpeck;
+uniform float uTime, uScale, uContrast, uPx, uSeed, opacity, uRim, uSpeck, uCell, uGran, uLimbD;
 uniform vec4 uSpots[6];
 uniform int uNSpots;
 uniform vec4 uAct[5];
@@ -279,6 +291,20 @@ uniform int uNAct;
 varying vec3 vN; varying vec3 vP;
 
 float fbm7(vec3 p){ float a=0.5, s=0.0; for(int i=0;i<7;i++){ s+=a*snoise(p); p=p*2.02+vec3(1.7,9.2,3.1); a*=0.52; } return s; }
+// crisp cellular granulation: bright cell centres, dark lanes; feature points wander so the cells boil
+vec3 hash33(vec3 p){ p = fract(p*vec3(0.1031, 0.1030, 0.0973)); p += dot(p, p.yxz + 33.33); return fract((p.xxy + p.yxx)*p.zyx); }
+vec2 worley(vec3 p, float t){
+  vec3 i = floor(p), f = fract(p);
+  float d1 = 8.0, d2 = 8.0;
+  for (int x = -1; x <= 1; x++) for (int y = -1; y <= 1; y++) for (int z = -1; z <= 1; z++){
+    vec3 g = vec3(float(x), float(y), float(z));
+    vec3 h = hash33(i + g);
+    vec3 o = 0.5 + 0.38*sin(t*(0.25 + 0.2*h) + 6.2831*h);
+    float d = length(g + o - f);
+    if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) d2 = d;
+  }
+  return vec2(d1, d2);
+}
 float ridged(vec3 p){ float a=0.5, s=0.0; for(int i=0;i<4;i++){ float n=1.0-abs(snoise(p)); s+=a*n*n; p*=2.1; a*=0.5; } return s; }
 
 // a small bundle of magnetic loops around an active region, drawn in its tangent plane
@@ -288,9 +314,9 @@ float loops(vec3 n, vec3 c, float size, float seed){
   vec2 p = vec2(dot(n, u), dot(n, v)) / size;
   if (dot(n, c) < 0.0 || dot(p, p) > 9.0) return 0.0;
   float acc = 0.0;
-  for (int k = 0; k < 10; k++){
+  for (int k = 0; k < 12; k++){
     float fk = float(k);
-    float ang = seed*6.2831 + (fk < 5.0 ? (fk-2.0)*0.28 : 3.1416 + (fk-7.0)*0.28);
+    float ang = seed*6.2831 + (fk < 6.0 ? (fk-2.5)*0.24 : 3.1416 + (fk-8.5)*0.24);
     vec2 q = mat2(cos(ang), -sin(ang), sin(ang), cos(ang)) * p;
     float L = 0.35 + 0.45*fract(sin(fk*12.9 + seed*78.2)*43758.5);
     q.x -= L*0.9;   // loops leave the bright core and land outside it
@@ -298,13 +324,15 @@ float loops(vec3 n, vec3 c, float size, float seed){
     if (abs(q.x) < L) {
       float y = h*sqrt(1.0 - (q.x*q.x)/(L*L));
       float d1 = abs(q.y - y);
-      float w = 0.011 + 0.006*fk/10.0;
-      acc += exp(-pow(d1/w, 2.0)) * (0.35 + 0.65*(1.0 - abs(q.x)/L));
+      float w = 0.016 + 0.01*fk/10.0;
+      float br = 0.45 + 0.55*(snoise(vec3(q.x*6.0, fk*3.1, seed))*0.5 + 0.5);
+      acc += (exp(-pow(d1/w, 2.0))*0.8 + exp(-pow(d1/(w*3.5), 2.0))*0.25) * (0.3 + 0.7*(1.0 - abs(q.x)/L)) * br;
     }
   }
   float smudge = exp(-dot(p*vec2(1.0, 1.5), p*vec2(1.0, 1.5))*1.8)*(0.55 + 0.45*snoise(vec3(p*3.0, seed)));
   float core = exp(-dot(p, p)*30.0);
-  return acc*0.5 + smudge*0.75 + core*0.6;
+  float plage = exp(-dot(p, p)*0.5)*(0.5 + 0.5*snoise(vec3(p*5.0, seed + 2.0)));
+  return acc*0.6 + smudge*0.8 + core*0.9 + plage*0.18;
 }
 
 void main(){
@@ -318,15 +346,27 @@ void main(){
   // domain warp for turbulent, flowing structure
   vec3 w1 = vec3(snoise(p*0.6 + vec3(0.0, t*0.03, 0.0)), snoise(p*0.6 + vec3(5.2, 1.3, t*0.025)), snoise(p*0.6 + vec3(t*0.02, 8.1, 2.7)));
   vec3 pw = p + w1*0.38;
+  // three scales of boiling turbulence, each drifting at its own pace
   float T = fbm7(pw + vec3(0.0, 0.0, t*0.04));
-  float veins = ridged(pw*1.7 + vec3(t*0.03, 0.0, 0.0));
-  float cells = fbm(p*3.2 - vec3(0.0, t*0.05, 0.0));
-  float h = 0.5 + 0.5*T;
-  h = mix(0.5, h, 0.6 + 0.4*detail);
-  h += (veins - 0.3)*0.22*uContrast;
-  h += 0.04;
-  h += cells*0.28*uContrast;
-  h = 0.5 + (h - 0.5)*(0.7 + uContrast);
+  vec3 w2 = vec3(snoise(pw*2.1 + vec3(t*0.05, 0.0, 3.3)), snoise(pw*2.1 + vec3(7.1, t*0.045, 0.0)), snoise(pw*2.1 + vec3(0.0, 2.2, t*0.05)));
+  float mid = fbm(pw*2.6 + w2*0.18 + vec3(0.0, -t*0.06, 0.0));
+  float fine = fbm(p*7.5 + w2*0.15 + vec3(t*0.09, 0.0, -t*0.07));
+  float veins = ridged(pw*2.4 + w2*0.25 + vec3(t*0.03, 0.0, 0.0));
+  float h = 0.5 + 0.32*T + 0.26*mid + 0.16*fine*detail;
+  h += (veins - 0.3)*0.16*uContrast;
+  h += 0.12;
+  h = 0.5 + (h - 0.5)*(0.75 + uContrast);
+
+  // granulation (fades out before it would alias)
+  float gpx = uPx/uCell;
+  float gv = 0.0;
+  if (gpx > 2.5) {
+    vec2 wl = worley(n*uCell + w1*0.6, t*1.0);
+    float edge = wl.y - wl.x;
+    float cell = smoothstep(0.02, 0.32, edge)*(1.0 - 0.45*smoothstep(0.1, 0.7, wl.x));
+    gv = (cell - 0.55)*smoothstep(2.5, 7.0, gpx);
+  }
+  h += gv*uGran;
 
   // active regions: white-hot cores with loop filaments
   float act = 0.0;
@@ -360,9 +400,12 @@ void main(){
   // bright, glowing limb (this look has limb brightening, not darkening)
   float x = 1.0 - mu;
   float rim = pow(x, 2.2);
-  c = mix(c, uBright, smoothstep(0.35, 1.0, x)*0.6*uRim);
-  c = mix(c, uHot, pow(x, 5.0)*0.6*uRim);
-  c += uHot*act*0.9 + uBright*sp*0.6;
+  c *= mix(1.0, uLimbD, smoothstep(0.15, 0.93, x));
+  c = mix(c, uBright, smoothstep(0.86, 1.0, x)*0.65*uRim);
+  c = mix(c, uHot, pow(x, 12.0)*0.7*uRim);
+  // depth: darker intergranular lanes, never flat
+  c *= mix(0.84, 1.0, smoothstep(0.1, 0.45, h));
+  c += uHot*act*1.25 + uBright*sp*0.6;
   c = min(c, vec3(1.0));
   gl_FragColor = vec4(c*opacity, opacity);
 }`
@@ -380,30 +423,55 @@ void main(){
   // fiery fringe: flame tongues licking off the limb
   float fl = snoise(vec3(cos(a)*9.0, sin(a)*9.0, uTime*0.2 - x*8.0))*0.5 + 0.5;
   float fl2 = snoise(vec3(cos(a)*26.0, sin(a)*26.0, uTime*0.3 - x*22.0))*0.5 + 0.5;
-  float flame = exp(-x/(0.01 + 0.035*fl*fl))*(0.6*fl + 0.4*fl2)*uFlame;
+  float flame = exp(-x/(0.012 + 0.05*fl*fl))*(0.6*fl + 0.4*fl2)*uFlame*1.2;
   float str = 0.75 + 0.25*snoise(vec3(cos(a)*3.0, sin(a)*3.0, uTime*0.01 + x*0.3));
-  float glow = 0.62*exp(-x*14.0) + 0.26*exp(-x*4.0)*str + 0.09*exp(-x*1.3) + 0.028*exp(-x*0.5);
+  float glow = 0.9*exp(-x*13.0) + 0.22*exp(-x*6.0) + 0.26*exp(-x*4.5)*str + 0.06*exp(-x*1.4) + 0.02*exp(-x*0.5);
   glow *= smoothstep(uG, uG*0.5, d) * uStrength;
   vec3 c = mix(uGlow, uHotGlow, exp(-x*16.0)) * glow + mix(uGlow, uHotGlow, 0.5)*flame*0.5*uStrength;
   gl_FragColor = premul(c, opacity);
 }`
 
-const PROM_FRAG = /* glsl */ `
-uniform vec3 uColor;
-uniform float opacity, uTime, uSeed;
+// flare ribbons: one canonical loop per strand, animated entirely by uniforms (grow from the feet, rise, flow, drain or erupt)
+const FLARE_VERT = /* glsl */ `
+uniform float uGrow, uDrift;
 varying vec2 vUv; varying vec3 vVN;
 void main(){
-  // vUv.x runs along the loop, vUv.y around the tube
+  vUv = uv;
+  vec3 p = position;
+  float L = length(p);
+  float r = mix(0.985, L, uGrow);          // the loop rises out of the surface
+  p = p/L*r;
+  // eruption: the top lifts away first, the loop swells as it goes
+  float top = smoothstep(0.0, 0.25, L - 1.0);
+  p.y += uDrift*(0.25 + 0.75*top);
+  p.xz *= 1.0 + uDrift*0.9*top;
+  vVN = normalize(normalMatrix*normal);
+  gl_Position = projectionMatrix*modelViewMatrix*vec4(p, 1.0);
+}`
+
+const FLARE_FRAG = /* glsl */ `
+uniform vec3 uColor, uHotC;
+uniform float opacity, uTime, uSeed, uReveal, uBright, uCore, uWide;
+varying vec2 vUv; varying vec3 vVN;
+void main(){
   float along = vUv.x;
-  float face = pow(abs(vVN.z), 2.2);              // soft, volumetric edges
-  float wisp = snoise(vec3(along*9.0 - uTime*0.12, vUv.y*2.0, uSeed))*0.5 + 0.5;
-  wisp = smoothstep(0.2, 0.9, wisp);
-  float wisp2 = snoise(vec3(along*40.0 + uTime*0.2, vUv.y*6.0, uSeed + 3.0))*0.5 + 0.5;
-  float ends = smoothstep(0.0, 0.08, along)*smoothstep(1.0, 0.92, along);
-  float a = face*(0.35 + 0.65*wisp)*(0.6 + 0.4*wisp2)*ends;
-  vec3 c = uColor*(0.8 + 0.7*wisp2*wisp) ;
-  c += vec3(1.0, 0.6, 0.25)*pow(1.0 - min(along, 1.0 - along)*2.0, 6.0)*0.35; // hotter feet
-  gl_FragColor = premul(c*a*0.55, opacity);
+  float m = min(along, 1.0 - along)*2.0;          // 0 at the footpoints, 1 at the apex
+  float vis = smoothstep(uReveal + 0.02, uReveal - 0.2, m);
+  if (vis <= 0.001) discard;
+  float face = abs(vVN.z);
+  float soft = pow(face, 1.6);                     // soft volumetric edge
+  float core = pow(face, 9.0);                     // hot inner thread
+  // plasma streams up from both feet and twists around the ribbon
+  float a = vUv.y*6.2831 + along*9.0 + uTime*0.7 + uSeed;
+  float flow = snoise(vec3(m*7.0 - uTime*0.45, cos(a)*0.9, sin(a)*0.9 + uSeed))*0.5 + 0.5;
+  float fine = snoise(vec3(m*28.0 - uTime*0.9, cos(a)*2.5 + uSeed, sin(a)*2.5))*0.5 + 0.5;
+  float knots = smoothstep(0.45, 0.95, flow);
+  float feet = pow(1.0 - m, 5.0);
+  float dens = soft*(0.3 + 0.7*knots)*(0.55 + 0.45*fine)*mix(1.15, 0.7, uWide);
+  vec3 c = uColor*(0.7 + 0.9*knots);
+  c = mix(c, uHotC, clamp(core*uCore*(0.4 + 0.8*fine) + feet*0.55, 0.0, 1.0));
+  c += uHotC*feet*0.35;
+  gl_FragColor = premul(c*dens*vis*uBright, opacity*clamp(uBright, 0.0, 1.0));
 }`
 
 function makeStar(b: Body, spec: StarSpec): BodyObj {
@@ -437,6 +505,7 @@ function makeStar(b: Body, spec: StarSpec): BodyObj {
     uDeep: { value: V(look.deep) }, uMid: { value: V(look.mid) }, uBright: { value: V(look.bright) }, uHot: { value: V(look.hot) },
     uTime: { value: 0 }, uScale: { value: spec.scale }, uContrast: { value: spec.contrast },
     uPx: { value: 500 }, uSeed: { value: (tempK % 97) * 0.13 }, uRim: { value: 1 }, uSpeck: { value: spec.speck },
+    uCell: { value: (GRAN[b.id] ?? [30, 0.3, 0.75])[0] }, uGran: { value: (GRAN[b.id] ?? [30, 0.3, 0.75])[1] }, uLimbD: { value: (GRAN[b.id] ?? [30, 0.3, 0.75])[2] },
     uSpots: { value: spots }, uNSpots: { value: spec.spots },
     uAct: { value: acts }, uNAct: { value: spec.active },
     opacity: { value: 1 },
@@ -459,49 +528,98 @@ function makeStar(b: Body, spec: StarSpec): BodyObj {
   disc.renderOrder = 0
   spinG.add(disc)
 
-  // prominences: 3d ribbons of wispy tubes rooted on the surface, so they turn with the star
-  const promU: { value: number }[] = []
-  for (let k = 0; k < spec.proms.length; k++) {
-    const [plat, plon, span, height, twist] = spec.proms[k]
-    const A = dirAt(plat - span * 0.5 * Math.sin(twist), plon - span * 0.5 * Math.cos(twist))
-    const B = dirAt(plat + span * 0.5 * Math.sin(twist), plon + span * 0.5 * Math.cos(twist))
-    const side = new THREE.Vector3().crossVectors(A, B).normalize()
-    const strands = 10
+  // flares: a small pool of 3d loop ribbons on the rotating star. each one lives through
+  // emerge -> rise -> brighten -> drain (or, now and then, erupt and drift away), then respawns elsewhere
+  const [nFl, flSpan, flH] = FLARES[b.id] ?? [4, 0.2, 0.15]
+  type FU = Record<'uGrow' | 'uReveal' | 'uDrift' | 'uBright' | 'uTime', { value: number }>
+  type Slot = { g: THREE.Group; u: FU[]; t0: number; D: number; erupt: boolean; hm: number; gap: number }
+  const slots: Slot[] = []
+  const Y = new THREE.Vector3(0, 1, 0)
+  const hotC = V(look.hot.map((v, i) => v * 0.7 + look.bright[i] * 0.3) as V3)
+  for (let k = 0; k < nFl; k++) {
+    const g = new THREE.Group()
+    const sz = 0.7 + r1() * 0.6
+    const span = flSpan * sz, H = flH * sz * 1.25
+    const A = new THREE.Vector3(-Math.sin(span / 2), Math.cos(span / 2), 0)
+    const B = new THREE.Vector3(Math.sin(span / 2), Math.cos(span / 2), 0)
+    const side = new THREE.Vector3(0, 0, 1)
+    const us: FU[] = []
+    const strands = 8
     for (let sIdx = 0; sIdx < strands; sIdx++) {
+      const wide = sIdx < 2
       const pts: THREE.Vector3[] = []
-      const hj = height * (0.55 + 0.6 * r1())
-      const off = (r1() - 0.5) * span * 0.25
-      const bend = (r1() - 0.5) * height * 0.5
+      const hj = H * (wide ? 0.85 : 0.6 + 0.5 * r1())
+      const off = (r1() - 0.5) * span * (wide ? 0.1 : 0.3)
+      const bend = (r1() - 0.5) * H * 0.6
       const ph = r1() * 6.28, fq = 2 + r1() * 3
-      for (let i = 0; i <= 40; i++) {
-        const t = i / 40
+      const lean = (r1() - 0.5) * 0.5
+      for (let i = 0; i <= 48; i++) {
+        const t = i / 48
         const dir = new THREE.Vector3().copy(A).lerp(B, t).normalize()
         const lift = Math.sin(Math.PI * t)
-        const r = 0.99 + hj * Math.pow(lift, 0.7) * (1 + 0.12 * Math.sin(t * fq * 3.1 + ph))
-        const p = dir.multiplyScalar(r)
-        p.addScaledVector(side, (off + bend * lift + 0.04 * height * Math.sin(t * fq * 5 + ph)) * lift)
-        pts.push(p)
+        const rr = 1 + hj * Math.pow(lift, 0.75) * (1 + 0.1 * Math.sin(t * fq * 3.1 + ph))
+        const pp = dir.multiplyScalar(rr)
+        pp.addScaledVector(side, (off + bend * lift + 0.05 * H * Math.sin(t * fq * 5 + ph)) * lift)
+        pp.x += lean * H * lift * lift
+        pts.push(pp)
       }
       const curve = new THREE.CatmullRomCurve3(pts)
-      const geo = new THREE.TubeGeometry(curve, 110, height * (0.03 + 0.09 * r1() * r1()), 10, false)
-      const pu = { uColor: { value: V(look.prom) }, opacity: { value: 1 }, uTime: { value: 0 }, uSeed: { value: k * 5.1 + sIdx * 1.7 } }
-      promU.push(pu.uTime)
+      const rad = wide ? H * (0.13 + 0.05 * r1()) : H * (0.018 + 0.05 * r1() * r1())
+      const geo = new THREE.TubeGeometry(curve, 96, rad, wide ? 10 : 7, false)
+      const pu = {
+        uColor: { value: V(look.prom) }, uHotC: { value: hotC }, opacity: { value: 1 }, uTime: { value: 0 }, uSeed: { value: k * 5.1 + sIdx * 1.7 },
+        uGrow: { value: 1 }, uDrift: { value: 0 }, uReveal: { value: 1.2 }, uBright: { value: 1 }, uCore: { value: wide ? 0.2 : 1 }, uWide: { value: wide ? 1 : 0 },
+      }
+      us.push(pu)
       const pm = glow(new THREE.ShaderMaterial({
-        uniforms: pu,
-        vertexShader: `varying vec2 vUv; varying vec3 vVN; void main(){ vUv = uv; vVN = normalize(normalMatrix*normal); gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0);} `,
-        fragmentShader: PREMUL + NOISE + PROM_FRAG,
+        uniforms: pu, vertexShader: FLARE_VERT, fragmentShader: PREMUL + NOISE + FLARE_FRAG,
         depthWrite: false, transparent: true, toneMapped: false, side: THREE.DoubleSide,
       }))
       obj.fades.push({ material: pm as unknown as THREE.Material & { opacity: number }, base: 1 })
       const tube = new THREE.Mesh(geo, pm)
       tube.renderOrder = 1
-      spinG.add(tube)
+      g.add(tube)
+    }
+    spinG.add(g)
+    slots.push({ g, u: us, t0: 0, D: 10, erupt: false, hm: 1, gap: 0 })
+  }
+  const qW = new THREE.Quaternion(), qT = new THREE.Quaternion(), dv = new THREE.Vector3()
+  const place = (sl: Slot) => {
+    // mostly on the visible limb (reads as a prominence), some across the disc (bright loops)
+    const limb = r1() < 0.65
+    const ph = r1() * Math.PI * 2, z = limb ? -0.12 + r1() * 0.35 : 0.3 + r1() * 0.6, q = Math.sqrt(1 - z * z)
+    dv.set(Math.cos(ph) * q, Math.sin(ph) * q, z)
+    spinG.getWorldQuaternion(qW).invert()
+    dv.applyQuaternion(qW).normalize()
+    sl.g.quaternion.setFromUnitVectors(Y, dv).multiply(qT.setFromAxisAngle(Y, r1() * Math.PI * 2))
+  }
+  const spawn = (sl: Slot, now: number, pre: number) => {
+    sl.erupt = r1() < 0.16
+    sl.D = sl.erupt ? 18 + r1() * 8 : 9 + r1() * 7
+    sl.hm = sl.erupt ? 1.2 : 0.8 + r1() * 0.4
+    sl.t0 = now - pre * sl.D
+    sl.gap = 0.6 + r1() * 3.5
+    place(sl)
+  }
+  let flInit = false
+  const setPhase = (sl: Slot, u: number, tt: number) => {
+    let grow = 1, reveal = 1.2, drift = 0, bright = 1
+    const ease = (x: number) => x * x * (3 - 2 * x)
+    if (u < 0.3) { const e = ease(u / 0.3); reveal = e * 1.2; grow = 0.3 + 0.5 * e; bright = 0.35 + 0.65 * e }
+    else if (u < 0.7) { const k = (u - 0.3) / 0.4; grow = 0.8 + 0.3 * ease(k); bright = 1 + 0.55 * Math.exp(-Math.pow((k - 0.45) / 0.22, 2)) }
+    else {
+      const k = Math.min(1, (u - 0.7) / 0.3)
+      if (sl.erupt) { grow = 1.1; drift = 0.9 * k * k * sl.hm * flH * 6; bright = 1.1 * (1 - k) }
+      else { grow = 1.1 - 0.35 * k; reveal = 1.2 * (1 - ease(k)); bright = 1 - 0.5 * k }
+    }
+    for (const pu of sl.u) {
+      pu.uGrow.value = grow * sl.hm; pu.uReveal.value = reveal; pu.uDrift.value = drift; pu.uBright.value = bright; pu.uTime.value = tt
     }
   }
 
   const G = 4.4
   const gu = {
-    uGlow: { value: V(look.mid.map((v, i) => v * 0.75 + look.bright[i] * 0.25) as V3) },
+    uGlow: { value: V(look.glow ?? (look.mid.map((v, i) => v * 0.75 + look.bright[i] * 0.25) as V3)) },
     uHotGlow: { value: V(look.bright.map((v, i) => v * 0.6 + look.hot[i] * 0.4) as V3) },
     opacity: { value: 1 }, uG: { value: G }, uTime: { value: 0 }, uStrength: { value: spec.glow }, uFlame: { value: spec.flame },
   }
@@ -520,7 +638,18 @@ function makeStar(b: Body, spec: StarSpec): BodyObj {
     const tt = reduced ? 0 : t
     uniforms.uTime.value = tt
     gu.uTime.value = tt
-    for (const u of promU) u.value = tt
+    if (!flInit) { flInit = true; slots.forEach((sl, k) => spawn(sl, t, reduced ? 0.45 : (k + r1() * 0.7) / slots.length)) }
+    for (const sl of slots) {
+      if (reduced) { sl.g.visible = true; setPhase(sl, 0.5, 0); continue }
+      const u = (t - sl.t0) / sl.D
+      if (u >= 1) {
+        sl.g.visible = false
+        if ((u - 1) * sl.D > sl.gap) spawn(sl, t, 0)
+        continue
+      }
+      sl.g.visible = u >= 0
+      setPhase(sl, Math.max(0, u), tt)
+    }
     uniforms.uPx.value = rs * GLScene.dpr
     if (!reduced) spinG.rotation.y += dt * 0.012 * auto
   }

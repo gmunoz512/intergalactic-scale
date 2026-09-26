@@ -7,9 +7,11 @@ size next to it — sometimes just a dot.
 inspired by the disc carousel at a24.raviklaassens.com, dressed in german+ colors.
 
 - vite + react + typescript + tailwind v4
-- three.js (webgl) spheres with real texture maps for planets; shader stars with animated,
-  turbulent photospheres, active regions, sunspots (sun), limb glow, a fiery corona and 3d
-  prominences, tinted by spectral type; toned public imagery for the orion nebula and omega
+- three.js (webgl) spheres with real texture maps for planets; shader stars with boiling
+  multi-scale turbulence, crisp cellular granulation, active regions with loop filaments,
+  sunspots (sun), limb darkening with a bright rim, a tight saturated corona, and animated 3d
+  flares that emerge from their footpoints, rise, stream, then drain or erupt (a few alive per
+  star, sized by type; static under reduced motion), tinted by spectral type; toned public imagery for the orion nebula and omega
   centauri; live procedural shader galaxies (a barred milky way, andromeda with m32/m110, the
   local group's dwarfs) and point-cloud renders for the largest structures
 - drag (or touch) the current body to spin it: trackball rotation with inertia, auto-spin
