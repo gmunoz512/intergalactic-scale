@@ -307,7 +307,7 @@ export default function App() {
   const R = vw < 768 ? 12 : 16
 
   return (
-    <div className="fixed inset-0 select-none bg-black text-mist">
+    <div className="accent-root fixed inset-0 select-none bg-black text-mist" style={{ ['--accent' as string]: body.accent }}>
       {/* the frame: canvas + ui live inside a hairline rounded rectangle on black margins */}
       <div className="absolute overflow-hidden bg-ink" style={{ left: m, top: m, width: fw, height: fh, borderRadius: R }}>
         <div
@@ -360,14 +360,14 @@ export default function App() {
                 <Stat label="vs previous" value={vsPrev ? times(vsPrev) : '—'} note={vsPrev ? prev!.name.replace(/^the /, '') : 'where i start'} />
                 <Stat label="vs earth" value={times(vsEarth)} />
               </dl>
-              <p className="mt-4 font-serif text-lg italic leading-snug tracking-normal text-paper-dim md:mt-5 md:text-xl">{body.fact}</p>
-              {body.note && <p className="mt-2 hidden font-sans text-xs leading-relaxed tracking-normal text-fog md:block">{body.note}</p>}
+              <p className="mt-4 font-mono text-[15px] leading-[1.5] tracking-[0.01em] text-paper-dim md:mt-5 md:text-[18px] md:leading-[1.45]">{body.fact}</p>
+              {body.note && <p className="mt-2 hidden font-mono text-[11px] leading-relaxed tracking-[0.02em] text-fog md:block">{body.note}</p>}
             </section>
 
             {credits && (
-              <div className="pointer-events-auto absolute bottom-20 left-5 right-5 z-10 max-w-md rounded-[10px] border border-line bg-ink-raised/95 p-5 font-sans text-xs leading-relaxed tracking-normal text-mist md:left-7 md:right-auto">
+              <div className="pointer-events-auto absolute bottom-20 left-5 right-5 z-10 max-w-md rounded-[10px] border border-line bg-ink-raised/95 p-5 font-mono text-[11px] leading-relaxed tracking-[0.02em] text-mist md:left-7 md:right-auto">
                 <div className="flex items-baseline justify-between">
-                  <p className="font-serif text-xl text-paper">credits</p>
+                  <p className="font-mono text-[13px] text-paper">credits</p>
                   <button onClick={() => setCredits(false)} className="font-mono text-[11px] tracking-[0.05em] text-fog hover:text-paper">[close]</button>
                 </div>
                 <ul className="mt-3 space-y-1.5">

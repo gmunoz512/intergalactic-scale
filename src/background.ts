@@ -151,7 +151,7 @@ export class Background {
       const len = m.len * Math.min(1, k * 4)
       const hx = m.x * d, hy = m.y * d, tx = (m.x - ux * len) * d, ty = (m.y - uy * len) * d
       const nx = -uy * m.w * d * 0.5, ny = ux * m.w * d * 0.5
-      const col = m.tan ? '212,165,116' : '244,241,234'
+      const col = '244,241,234'
       const gr = ctx.createLinearGradient(hx, hy, tx, ty)
       gr.addColorStop(0, `rgba(${col},${0.85 * fade})`)
       gr.addColorStop(0.25, `rgba(${col},${0.35 * fade})`)

@@ -41,6 +41,9 @@ export class Scene {
 
   /** depth of field (off on phones and once adaptive quality kicks in) */
   dofOn = true
+  /** current ui accent (rgb 0-255), eased toward the slide's accent */
+  private acc: number[] | null = null
+  private static rgb(h: string) { return [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) }
   constructor(private bgCanvas: HTMLCanvasElement, glCanvas: HTMLCanvasElement, private overlay: HTMLCanvasElement, private bodies: Body[] = BODIES) {
     this.bg = new Background(bgCanvas)
     try { this.gl = new GLScene(glCanvas, bodies) } catch (e) { console.warn('webgl unavailable, drawing flat discs', e) }
@@ -95,7 +98,7 @@ export class Scene {
   /** resolves once fonts, the first slides' textures and their shaders are ready */
   async ready(i: number) {
     const fonts = document.fonts
-      ? Promise.all(['400 16px "Courier Prime"', '700 16px "Courier Prime"', '400 16px "Instrument Serif"', '400 16px "Inter"'].map((f) => document.fonts.load(f).catch(() => null))).then(() => document.fonts.ready)
+      ? Promise.all(['400 16px "Courier Prime"', '700 16px "Courier Prime"', '400 16px "Instrument Serif"'].map((f) => document.fonts.load(f).catch(() => null))).then(() => document.fonts.ready)
       : Promise.resolve()
     await Promise.all([fonts, this.gl?.warm(i, this.hiRes)])
   }
@@ -116,6 +119,11 @@ export class Scene {
     const { cx, cy, base } = this.layout
     const k = base / Rref
 
+    // ease the accent toward the current slide's (~500ms), like the css variable
+    const tgt = Scene.rgb(bodies[Math.round(s)].accent)
+    if (!this.acc || this.reduced) this.acc = tgt.slice()
+    else { const k = 1 - Math.exp(-dt / 0.16); this.acc = this.acc.map((v, j) => v + (tgt[j] - v) * k) }
+    const A = this.acc.map(Math.round).join(',')
     this.bg.reduced = this.reduced
     this.bg.draw(s / (n - 1), time, dt)
 
@@ -160,7 +168,7 @@ export class Scene {
         o.beginPath(); o.arc(x, y, rs, 0, Math.PI * 2); o.fill()
         o.globalAlpha = 1
       }
-      if (i === cur - 1 && settle > 0.01) this.marker(x, y, rs * (EXTENT[bodies[i].id] ?? 1), bodies[i].name, settle)
+      if (i === cur - 1 && settle > 0.01) this.marker(x, y, rs * (EXTENT[bodies[i].id] ?? 1), bodies[i].accent, settle)
       if (i === cur) this.hitInfo = settle > 0.6 && rs > 8 ? { i, x, y, rs } : null
       if (i === cur && settle > 0.01 && this.gl?.has(i)) {
         const labels = this.gl.obj(i).labels
@@ -168,7 +176,7 @@ export class Scene {
       }
       if (i === cur && settle > 0.01 && rs > 20) {
         const rr = rs * (EXTENT[bodies[i].id] ?? 1) * 1.1 + 8
-        o.strokeStyle = `rgba(212,165,116,${0.32 * settle})`
+        o.strokeStyle = `rgba(${A},${0.42 * settle})`
         o.lineWidth = 1
         o.beginPath()
         const start = -Math.PI * 0.62
@@ -197,11 +205,11 @@ export class Scene {
       const r = Math.max(l.r * rs, 3 * u)
       const sx = l.left ? -1 : 1
       const lx = px + sx * (r * 0.72 + 4 * u), ly = py - r * 0.72 - 4 * u
-      o.strokeStyle = l.major ? `rgba(212,165,116,${0.55 * a})` : `rgba(161,161,170,${0.35 * a})`
+      o.strokeStyle = l.major ? `rgba(${this.acc?.map(Math.round).join(',') ?? '212,165,116'},${0.55 * a})` : `rgba(161,161,170,${0.35 * a})`
       o.lineWidth = 1
       o.beginPath(); o.moveTo(lx, ly); o.lineTo(lx + sx * 10 * u, ly - 10 * u); o.lineTo(lx + sx * 18 * u, ly - 10 * u); o.stroke()
       o.font = `${Math.round((l.major ? 11 : 10) * u)}px "Courier Prime", "Courier New", ui-monospace, SFMono-Regular, Menlo, monospace`
-      o.fillStyle = l.major ? `rgba(212,165,116,${0.9 * a})` : `rgba(161,161,170,${0.75 * a})`
+      o.fillStyle = l.major ? `rgba(${this.acc?.map(Math.round).join(',') ?? '212,165,116'},${0.9 * a})` : `rgba(161,161,170,${0.75 * a})`
       o.textAlign = l.left ? 'right' : 'left'
       o.fillText(l.name, lx + sx * 22 * u, ly - 10 * u)
       o.textAlign = 'left'
@@ -209,10 +217,10 @@ export class Scene {
   }
 
   /** the previous body keeps a thin ring; its name lives in the stats ('vs previous'), not on the canvas */
-  private marker(x: number, y: number, rs: number, _name: string, a: number) {
+  private marker(x: number, y: number, rs: number, accent: string, a: number) {
     const o = this.octx
     const ring = Math.max(rs + 7 * this.ui, 11 * this.ui)
-    o.strokeStyle = `rgba(212,165,116,${0.55 * a})`
+    o.strokeStyle = `rgba(${Scene.rgb(accent).join(',')},${0.4 * a})`
     o.lineWidth = 1
     o.beginPath(); o.arc(x, y, ring, 0, Math.PI * 2); o.stroke()
   }
