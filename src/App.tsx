@@ -95,6 +95,13 @@ export default function App() {
     return () => removeEventListener('keydown', onKey)
   }, [go, step])
 
+  // follow manual hash edits / back-forward (replaceState doesn't fire this)
+  useEffect(() => {
+    const onHash = () => go(indexFromHash())
+    addEventListener('hashchange', onHash)
+    return () => removeEventListener('hashchange', onHash)
+  }, [go])
+
   // wheel: one slide per gesture, trackpad-momentum safe
   useEffect(() => {
     const el = stageRef.current!
