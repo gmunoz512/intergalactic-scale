@@ -5,4 +5,5 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   base: '/scale-tour/',
   plugins: [react(), tailwindcss()],
+  build: { chunkSizeWarningLimit: 900 },
 })

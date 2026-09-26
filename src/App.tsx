@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { BODIES, EARTH, formatLength, times } from './data'
-import { Scene } from './scene'
+import { Scene, uiScale } from './scene'
 
 const N = BODIES.length
 const pad2 = (n: number) => String(n).padStart(2, '0')
@@ -13,6 +13,8 @@ function indexFromHash() {
 }
 
 export default function App() {
+  const bgRef = useRef<HTMLCanvasElement>(null)
+  const glRef = useRef<HTMLCanvasElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const initial = useRef(indexFromHash())
@@ -22,6 +24,8 @@ export default function App() {
   const dragging = useRef<null | { x: number; y: number; start: number; axis: 0 | 1 | -1; lastT: number; lastP: number; v: number }>(null)
   const reduced = useRef(false)
   const [active, setActive] = useState(initial.current)
+  const [credits, setCredits] = useState(false)
+  const [ui, setUi] = useState(() => uiScale(innerWidth, innerHeight))
 
   const go = useCallback((i: number) => {
     target.current = clamp(Math.round(i), 0, N - 1)
@@ -35,18 +39,23 @@ export default function App() {
   // render loop + physics
   useEffect(() => {
     const canvas = canvasRef.current!
-    const scene = new Scene(canvas)
+    const scene = new Scene(bgRef.current!, glRef.current!, canvas)
     const mq = matchMedia('(prefers-reduced-motion: reduce)')
     const setReduced = () => { reduced.current = mq.matches; scene.reduced = mq.matches }
     setReduced()
     mq.addEventListener('change', setReduced)
-    const onResize = () => { scene.resize(innerWidth, innerHeight); scene.warm(target.current) }
+    const onResize = () => { scene.resize(innerWidth, innerHeight); scene.prefetch(target.current); setUi(uiScale(innerWidth, innerHeight)) }
     onResize()
     addEventListener('resize', onResize)
 
     let raf = 0
     let last = performance.now()
     let shown = -1
+    let lastPrefetch = -1
+    let slowT = 0
+    let sampleT = 0
+    let slowFrames = 0
+    let frames = 0
     const frame = (now: number) => {
       const dt = Math.min(0.05, (now - last) / 1000)
       last = now
@@ -64,7 +73,15 @@ export default function App() {
         }
       }
       scene.draw(pos.current, now / 1000)
-      scene.idleWork(pos.current === target.current ? 14 : 4)
+      // adaptive resolution: if we're well under 60fps for ~2s, render fewer pixels
+      frames++
+      if (dt > 1 / 45) slowFrames++
+      sampleT += dt
+      if (sampleT > 2) {
+        if (slowFrames / frames > 0.5 && now - slowT > 3000) { scene.lowerQuality(); slowT = now }
+        sampleT = 0; frames = 0; slowFrames = 0
+      }
+      if (target.current !== lastPrefetch) { lastPrefetch = target.current; scene.prefetch(target.current) }
       const r = clamp(Math.round(pos.current), 0, N - 1)
       if (r !== shown) {
         shown = r
@@ -191,9 +208,13 @@ export default function App() {
         aria-label="scale tour, from the moon to the observable universe"
         tabIndex={0}
       >
-        <canvas ref={canvasRef} className="block h-full w-full" />
+        <canvas ref={bgRef} className="absolute inset-0 block h-full w-full" />
+        <canvas ref={glRef} className="absolute inset-0 block h-full w-full" />
+        <canvas ref={canvasRef} className="absolute inset-0 block h-full w-full" />
       </div>
 
+      {/* ui layer: zoomed as a whole on very large 1x viewports so type stays proportional */}
+      <div className="pointer-events-none fixed left-0 top-0" style={{ zoom: ui, width: `${100 / ui}vw`, height: `${100 / ui}vh` }}>
       {/* top bar */}
       <header className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between px-5 pt-5 md:px-10 md:pt-8">
         <div className="pointer-events-auto">
@@ -226,8 +247,26 @@ export default function App() {
         </div>
       </section>
 
+      {credits && (
+        <div className="pointer-events-auto fade-swap absolute bottom-24 left-5 right-5 z-10 max-w-md rounded-xl border border-line bg-ink-raised/95 p-5 text-xs leading-relaxed text-mist backdrop-blur md:left-10 md:right-auto">
+          <div className="flex items-baseline justify-between">
+            <p className="font-serif text-xl text-paper">credits</p>
+            <button onClick={() => setCredits(false)} className="font-mono text-[11px] text-fog hover:text-accent">close</button>
+          </div>
+          <ul className="mt-3 space-y-1.5">
+            <li>planet &amp; sun maps: <a className="text-paper-dim underline decoration-line underline-offset-2 hover:text-accent" href="https://www.solarsystemscope.com/textures/">solar system scope</a>, cc by 4.0 (based on nasa data)</li>
+            <li>orion nebula: nasa, esa, m. robberto (stsci/esa) &amp; the hubble orion treasury project team — public domain</li>
+            <li>omega centauri: eso/inaf-vst/omegacam, a. grado, l. limatola — cc by 4.0</li>
+            <li>milky way: nasa/jpl-caltech/eso/r. hurt</li>
+            <li>andromeda: adam evans, cc by 2.0 (cropped, rotated, toned)</li>
+            <li>stars, heliosphere, oort cloud, local group, superclusters &amp; the observable universe are drawn procedurally. sizes &amp; sources in the repo’s src/data.ts.</li>
+          </ul>
+          <p className="mt-3 text-fog">made by german, for fun. images are toned to fit the page.</p>
+        </div>
+      )}
+
       {/* bottom bar */}
-      <footer className="absolute inset-x-0 bottom-0 px-5 pb-6 md:px-10 md:pb-8">
+      <footer className="pointer-events-auto absolute inset-x-0 bottom-0 px-5 pb-6 md:px-10 md:pb-8">
         <div className="relative h-px w-full bg-line" aria-hidden>
           <div className="absolute inset-y-0 left-0 bg-accent transition-[width] duration-700 ease-out" style={{ width: `${progress * 100}%` }} />
           {BODIES.map((b, i) => (
@@ -247,6 +286,10 @@ export default function App() {
           <p className="font-mono text-[11px] text-fog">
             <span className="hidden md:inline">scroll, drag, or use ← → </span>
             <span className="md:hidden">swipe to grow</span>
+            <span className="mx-2 text-line">/</span>
+            <button onClick={() => setCredits((v) => !v)} className="text-fog underline decoration-line underline-offset-4 transition-colors hover:text-accent" aria-expanded={credits}>
+              credits
+            </button>
           </p>
           <div className="flex items-center gap-2">
             <NavButton label="previous" disabled={active === 0} onClick={() => step(-1)}>←</NavButton>
@@ -254,6 +297,7 @@ export default function App() {
           </div>
         </div>
       </footer>
+      </div>
     </div>
   )
 }
