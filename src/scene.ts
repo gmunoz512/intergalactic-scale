@@ -37,6 +37,7 @@ export class Scene {
   ui = 1
   /** adaptive resolution multiplier; drops if frames are slow */
   quality = 1
+  private hitInfo: { i: number; x: number; y: number; rs: number } | null = null
 
   constructor(bgCanvas: HTMLCanvasElement, glCanvas: HTMLCanvasElement, private overlay: HTMLCanvasElement, private bodies: Body[] = BODIES) {
     this.bg = new Background(bgCanvas)
@@ -66,6 +67,20 @@ export class Scene {
     this.resize(this.w, this.h)
     return true
   }
+
+  /** index of the current body under (x, y), and how it can be handled */
+  hit(x: number, y: number): { i: number; kind: 'rotate' | 'tilt'; rs: number } | null {
+    const h = this.hitInfo
+    if (!h || !this.gl) return null
+    const kind = this.gl.grabKind(h.i)
+    if (!kind) return null
+    const r = h.rs * (kind === 'rotate' ? 1.04 : 0.9)
+    if (Math.hypot(x - h.x, y - h.y) > Math.max(r, 16)) return null
+    return { i: h.i, kind, rs: h.rs }
+  }
+  grab(i: number) { this.gl?.grab(i) }
+  drag(i: number, dx: number, dy: number, rs: number, dt: number) { this.gl?.drag(i, dx, dy, rs, dt) }
+  release(i: number) { this.gl?.release(i, this.reduced) }
 
   prefetch(i: number) { this.gl?.prefetch(i, this.hiRes) }
 
@@ -129,6 +144,11 @@ export class Scene {
         o.globalAlpha = 1
       }
       if (i === cur - 1 && settle > 0.01) this.marker(x, y, rs * (EXTENT[bodies[i].id] ?? 1), bodies[i].name, settle)
+      if (i === cur) this.hitInfo = settle > 0.6 && rs > 8 ? { i, x, y, rs } : null
+      if (i === cur && settle > 0.01 && this.gl?.has(i)) {
+        const labels = this.gl.obj(i).labels
+        if (labels) this.labels(x, y, rs, labels, settle)
+      }
       if (i === cur && settle > 0.01 && rs > 20) {
         const rr = rs * (EXTENT[bodies[i].id] ?? 1) * 1.1 + 8
         o.strokeStyle = `rgba(212,165,116,${0.32 * settle})`
@@ -140,6 +160,35 @@ export class Scene {
       }
     }
     this.gl?.render(items, time, dt, this.reduced, this.hiRes, cur)
+  }
+
+  private labels(x: number, y: number, rs: number, labels: { x: number; y: number; r: number; name: string; major?: boolean; left?: boolean }[], a: number) {
+    const o = this.octx
+    const u = this.ui
+    o.textBaseline = 'middle'
+    o.textAlign = 'left'
+    for (const l of labels) {
+      const px = x + l.x * rs, py = y - l.y * rs
+      if (l.r === 0) {
+        o.font = `${Math.round(10 * u)}px "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace`
+        o.fillStyle = `rgba(161,161,170,${0.55 * a})`
+        o.textAlign = 'center'
+        o.fillText(l.name, px, py - 10 * u)
+        o.textAlign = 'left'
+        continue
+      }
+      const r = Math.max(l.r * rs, 3 * u)
+      const sx = l.left ? -1 : 1
+      const lx = px + sx * (r * 0.72 + 4 * u), ly = py - r * 0.72 - 4 * u
+      o.strokeStyle = l.major ? `rgba(212,165,116,${0.55 * a})` : `rgba(161,161,170,${0.35 * a})`
+      o.lineWidth = 1
+      o.beginPath(); o.moveTo(lx, ly); o.lineTo(lx + sx * 10 * u, ly - 10 * u); o.lineTo(lx + sx * 18 * u, ly - 10 * u); o.stroke()
+      o.font = `${Math.round((l.major ? 11 : 10) * u)}px "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace`
+      o.fillStyle = l.major ? `rgba(212,165,116,${0.9 * a})` : `rgba(161,161,170,${0.75 * a})`
+      o.textAlign = l.left ? 'right' : 'left'
+      o.fillText(l.name, lx + sx * 22 * u, ly - 10 * u)
+      o.textAlign = 'left'
+    }
   }
 
   private marker(x: number, y: number, rs: number, name: string, a: number) {

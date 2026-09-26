@@ -7,9 +7,13 @@ size next to it — sometimes just a dot.
 inspired by the disc carousel at a24.raviklaassens.com, dressed in german+ colors.
 
 - vite + react + typescript + tailwind v4
-- three.js (webgl) spheres with real texture maps for planets, shader-based photospheres
-  for stars (limb darkening, granulation, corona by temperature), toned public imagery for
-  nebula / cluster / galaxies, and procedural point-cloud renders for the largest structures
+- three.js (webgl) spheres with real texture maps for planets; shader stars with animated,
+  turbulent photospheres, active regions, sunspots (sun), limb glow, a fiery corona and 3d
+  prominences, tinted by spectral type; toned public imagery for the orion nebula and omega
+  centauri; live procedural shader galaxies (a barred milky way, andromeda with m32/m110, the
+  local group's dwarfs) and point-cloud renders for the largest structures
+- drag (or touch) the current body to spin it: trackball rotation with inertia, auto-spin
+  resumes after a few idle seconds; dragging empty space still changes slides
 - renders at device pixel ratio (up to 3, capped around a 4k×1.6 pixel budget) with adaptive
   resolution fallback; 4k maps load lazily for the current slide, 2k otherwise
 - crisp starfield with a faint milky way band, plus a shooting star every 6–15s
@@ -29,11 +33,11 @@ mean radii; stars use published interferometric radii; structures use quoted dia
 
 ## image credits
 
-- planet & sun maps: [solar system scope](https://www.solarsystemscope.com/textures/), cc by 4.0
+- planet maps: [solar system scope](https://www.solarsystemscope.com/textures/), cc by 4.0
   (downloaded via wikimedia commons, resized to 4k/2k webp)
 - orion nebula: nasa, esa, m. robberto (stsci/esa) and the hubble space telescope orion treasury
   project team — public domain
 - omega centauri: eso/inaf-vst/omegacam, acknowledgement a. grado, l. limatola/inaf-capodimonte
   observatory — cc by 4.0
-- milky way (artist's impression): nasa/jpl-caltech/eso/r. hurt
-- andromeda: adam evans, cc by 2.0 (cropped, rotated, toned)
+- the sun and stars, the milky way, andromeda and the local group are procedural illustrations
+  (no imagery), styled after eso / hubble / amateur astrophotography references

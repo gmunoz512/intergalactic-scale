@@ -23,6 +23,8 @@ export default function App() {
   const target = useRef(initial.current)
   const dragging = useRef<null | { x: number; y: number; start: number; axis: 0 | 1 | -1; lastT: number; lastP: number; v: number }>(null)
   const reduced = useRef(false)
+  const sceneRef = useRef<Scene | null>(null)
+  const rotating = useRef<null | { i: number; x: number; y: number; t: number; rs: number; id: number }>(null)
   const [active, setActive] = useState(initial.current)
   const [credits, setCredits] = useState(false)
   const [ui, setUi] = useState(() => uiScale(innerWidth, innerHeight))
@@ -40,6 +42,7 @@ export default function App() {
   useEffect(() => {
     const canvas = canvasRef.current!
     const scene = new Scene(bgRef.current!, glRef.current!, canvas)
+    sceneRef.current = scene
     const mq = matchMedia('(prefers-reduced-motion: reduce)')
     const setReduced = () => { reduced.current = mq.matches; scene.reduced = mq.matches }
     setReduced()
@@ -147,15 +150,36 @@ export default function App() {
   }, [step])
 
   // drag / swipe
+  const setCursor = (c: string) => { if (stageRef.current && stageRef.current.style.cursor !== c) stageRef.current.style.cursor = c }
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return
     ;(e.target as Element).setPointerCapture?.(e.pointerId)
+    // a press that starts on the current body turns it instead of changing slides
+    const hit = sceneRef.current?.hit(e.clientX, e.clientY)
+    if (hit && !rotating.current) {
+      rotating.current = { i: hit.i, x: e.clientX, y: e.clientY, t: performance.now(), rs: hit.rs, id: e.pointerId }
+      sceneRef.current!.grab(hit.i)
+      setCursor('grabbing')
+      return
+    }
+    setCursor('grabbing')
     dragging.current = { x: e.clientX, y: e.clientY, start: pos.current, axis: 0, lastT: performance.now(), lastP: pos.current, v: 0 }
     vel.current = 0
   }
   const onPointerMove = (e: React.PointerEvent) => {
+    const r = rotating.current
+    if (r) {
+      if (e.pointerId !== r.id) return
+      const now = performance.now()
+      sceneRef.current?.drag(r.i, e.clientX - r.x, e.clientY - r.y, r.rs, Math.max(0.001, (now - r.t) / 1000))
+      r.x = e.clientX; r.y = e.clientY; r.t = now
+      return
+    }
     const d = dragging.current
-    if (!d) return
+    if (!d) {
+      if (e.pointerType === 'mouse') setCursor(sceneRef.current?.hit(e.clientX, e.clientY) ? 'grab' : 'default')
+      return
+    }
     const dx = e.clientX - d.x, dy = e.clientY - d.y
     if (d.axis === 0 && Math.hypot(dx, dy) > 6) d.axis = Math.abs(dx) >= Math.abs(dy) ? 1 : -1
     if (d.axis === 0) return
@@ -171,6 +195,17 @@ export default function App() {
     pos.current = p
   }
   const onPointerUp = (e: React.PointerEvent) => {
+    const r = rotating.current
+    if (r) {
+      if (e.pointerId !== r.id) return
+      rotating.current = null
+      // a still-held pointer means no fling
+      if (performance.now() - r.t > 90) sceneRef.current?.drag(r.i, 0, 0, r.rs, 0.1)
+      sceneRef.current?.release(r.i)
+      setCursor(e.pointerType === 'mouse' && sceneRef.current?.hit(e.clientX, e.clientY) ? 'grab' : 'default')
+      return
+    }
+    setCursor('default')
     const d = dragging.current
     dragging.current = null
     if (!d) return
@@ -198,7 +233,7 @@ export default function App() {
     <div className="fixed inset-0 select-none bg-ink text-mist">
       <div
         ref={stageRef}
-        className="absolute inset-0 cursor-grab touch-none active:cursor-grabbing"
+        className="absolute inset-0 touch-none"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -254,12 +289,10 @@ export default function App() {
             <button onClick={() => setCredits(false)} className="font-mono text-[11px] text-fog hover:text-accent">close</button>
           </div>
           <ul className="mt-3 space-y-1.5">
-            <li>planet &amp; sun maps: <a className="text-paper-dim underline decoration-line underline-offset-2 hover:text-accent" href="https://www.solarsystemscope.com/textures/">solar system scope</a>, cc by 4.0 (based on nasa data)</li>
+            <li>planet maps: <a className="text-paper-dim underline decoration-line underline-offset-2 hover:text-accent" href="https://www.solarsystemscope.com/textures/">solar system scope</a>, cc by 4.0 (based on nasa data)</li>
             <li>orion nebula: nasa, esa, m. robberto (stsci/esa) &amp; the hubble orion treasury project team — public domain</li>
             <li>omega centauri: eso/inaf-vst/omegacam, a. grado, l. limatola — cc by 4.0</li>
-            <li>milky way: nasa/jpl-caltech/eso/r. hurt</li>
-            <li>andromeda: adam evans, cc by 2.0 (cropped, rotated, toned)</li>
-            <li>stars, heliosphere, oort cloud, local group, superclusters &amp; the observable universe are drawn procedurally. sizes &amp; sources in the repo’s src/data.ts.</li>
+            <li>the sun &amp; stars, the milky way, andromeda, the local group’s galaxies, the heliosphere, oort cloud, superclusters &amp; the observable universe are live procedural renders (illustrations, styled after eso, hubble &amp; amateur astrophotos). sizes &amp; sources in the repo’s src/data.ts.</li>
           </ul>
           <p className="mt-3 text-fog">made by german, for fun. images are toned to fit the page.</p>
         </div>
@@ -284,8 +317,8 @@ export default function App() {
         </div>
         <div className="mt-4 flex items-center justify-between">
           <p className="font-mono text-[11px] text-fog">
-            <span className="hidden md:inline">scroll, drag, or use ← → </span>
-            <span className="md:hidden">swipe to grow</span>
+            <span className="hidden md:inline">scroll, drag, or use ← → · drag a planet, star or galaxy to spin it</span>
+            <span className="md:hidden">swipe to grow · touch a body to spin it</span>
             <span className="mx-2 text-line">/</span>
             <button onClick={() => setCredits((v) => !v)} className="text-fog underline decoration-line underline-offset-4 transition-colors hover:text-accent" aria-expanded={credits}>
               credits
