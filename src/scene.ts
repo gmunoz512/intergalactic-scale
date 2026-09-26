@@ -39,7 +39,9 @@ export class Scene {
   quality = 1
   private hitInfo: { i: number; x: number; y: number; rs: number } | null = null
 
-  constructor(bgCanvas: HTMLCanvasElement, glCanvas: HTMLCanvasElement, private overlay: HTMLCanvasElement, private bodies: Body[] = BODIES) {
+  /** depth of field (off on phones and once adaptive quality kicks in) */
+  dofOn = true
+  constructor(private bgCanvas: HTMLCanvasElement, glCanvas: HTMLCanvasElement, private overlay: HTMLCanvasElement, private bodies: Body[] = BODIES) {
     this.bg = new Background(bgCanvas)
     try { this.gl = new GLScene(glCanvas, bodies) } catch (e) { console.warn('webgl unavailable, drawing flat discs', e) }
     this.octx = overlay.getContext('2d')!
@@ -54,6 +56,9 @@ export class Scene {
     this.bg.resize(w, h, this.dpr)
     this.gl?.resize(w, h, this.dpr)
     const mobile = w < 768
+    if (mobile) this.dofOn = false
+    // the starfield sits far behind the focus plane
+    this.bgCanvas.style.filter = this.dofOn ? 'blur(0.6px)' : ''
     const base = mobile ? Math.min(w * 0.34, h * 0.2) : Math.min(h * 0.3, w * 0.22)
     this.layout = mobile ? { cx: w * 0.5, cy: h * 0.36, base } : { cx: w * 0.6, cy: h * 0.5, base }
     // 4k maps once the hero body is big on screen in device pixels
@@ -62,6 +67,8 @@ export class Scene {
 
   /** step resolution down one notch; returns false if already at the floor */
   lowerQuality() {
+    // first thing to go on a slow device is the depth of field
+    if (this.dofOn) { this.dofOn = false; this.bgCanvas.style.filter = ''; return true }
     if (pickDpr(this.w, this.h) * this.quality <= 1.01) return false
     this.quality *= 0.8
     this.resize(this.w, this.h)
@@ -83,6 +90,11 @@ export class Scene {
   release(i: number) { this.gl?.release(i, this.reduced) }
 
   prefetch(i: number) { this.gl?.prefetch(i, this.hiRes) }
+
+  /** resolves once fonts, the first slides' textures and their shaders are ready */
+  async ready(i: number) {
+    await Promise.all([document.fonts?.ready ?? Promise.resolve(), this.gl?.warm(i, this.hiRes)])
+  }
 
   draw(s: number, time: number) {
     const dt = this.lastTime ? Math.min(0.05, time - this.lastTime) : 0.016
@@ -159,7 +171,7 @@ export class Scene {
         o.stroke()
       }
     }
-    this.gl?.render(items, time, dt, this.reduced, this.hiRes, cur)
+    this.gl?.render(items, time, dt, this.reduced, this.hiRes, cur, this.dofOn ? settle * settle : 0)
   }
 
   private labels(x: number, y: number, rs: number, labels: { x: number; y: number; r: number; name: string; major?: boolean; left?: boolean }[], a: number) {
@@ -201,8 +213,10 @@ export class Scene {
     o.font = `${Math.round(11 * this.ui)}px "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace`
     const flip = x - ring - 40 * u - o.measureText(name).width < 12
     const sx = flip ? 1 : -1
-    const lx = x + sx * ring * 0.7071, ly = y + ring * 0.7071
-    const ex = lx + sx * 26 * u, ey = ly + 26 * u
+    // on phones the text sits below the bodies, so the leader goes up instead
+    const sy = this.w < 768 ? -1 : 1
+    const lx = x + sx * ring * 0.7071, ly = y + sy * ring * 0.7071
+    const ex = lx + sx * 26 * u, ey = ly + sy * 26 * u
     o.beginPath(); o.moveTo(lx, ly); o.lineTo(ex, ey); o.lineTo(ex + sx * 14 * u, ey); o.stroke()
     o.fillStyle = `rgba(161,161,170,${a})`
     o.textAlign = flip ? 'left' : 'right'

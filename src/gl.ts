@@ -154,6 +154,9 @@ function track(obj: BodyObj, m: THREE.Material & { opacity: number }) {
   return m
 }
 
+/** auto-spin speed multiplier for every planet, star and galaxy */
+const SPIN_K = 1.1
+
 // ---------- texture cache ----------
 const loader = new THREE.TextureLoader()
 const texCache = new Map<string, Promise<THREE.Texture>>()
@@ -204,7 +207,7 @@ function makePlanet(b: Body, spec: PlanetSpec): BodyObj {
       vertexShader: `varying vec3 vN; void main(){ vN = normalize(normalMatrix*normal); gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0);} `,
       fragmentShader: PREMUL + `uniform vec3 uColor; uniform float uStrength; uniform float opacity; uniform vec3 uLight; varying vec3 vN;
         void main(){ float mu = dot(normalize(vN), vec3(0.,0.,1.)); float rim = pow(1.0 - clamp(mu,0.,1.), 3.0);
-          float lit = smoothstep(-0.35, 0.6, dot(normalize(vN), uLight));
+          float lit = 0.14 + 0.86*smoothstep(-0.25, 0.6, dot(normalize(vN), uLight)); // faint rim survives on the night side
           gl_FragColor = premul(uColor * rim * lit * uStrength * 1.4, opacity); }`,
       depthWrite: false, transparent: true,
     }))
@@ -246,8 +249,8 @@ function makePlanet(b: Body, spec: PlanetSpec): BodyObj {
   }
   obj.update = (_t, dt, _rs, reduced, auto) => {
     if (reduced) return
-    mesh.rotation.y += dt * (spec.spin ?? 0.03) * auto
-    if (clouds) clouds.rotation.y += dt * (spec.spin ?? 0.03) * (0.25 + 1.0 * auto)
+    mesh.rotation.y += dt * (spec.spin ?? 0.03) * SPIN_K * auto
+    if (clouds) clouds.rotation.y += dt * (spec.spin ?? 0.03) * SPIN_K * (0.25 + 1.0 * auto)
   }
   return obj
 }
@@ -651,7 +654,7 @@ function makeStar(b: Body, spec: StarSpec): BodyObj {
       setPhase(sl, Math.max(0, u), tt)
     }
     uniforms.uPx.value = rs * GLScene.dpr
-    if (!reduced) spinG.rotation.y += dt * 0.012 * auto
+    if (!reduced) spinG.rotation.y += dt * 0.012 * SPIN_K * auto
   }
   return obj
 }
@@ -931,7 +934,7 @@ function makeGalaxy(b: Body, spec: GalaxySpec): BodyObj {
   obj.update = (_t, dt, rs, reduced, auto) => {
     u.uPx.value = rs * GLScene.dpr
     for (const p of pxUs) p.u.value = rs * p.k * GLScene.dpr
-    if (!reduced) u.uSpin.value += dt * 0.008 * auto
+    if (!reduced) u.uSpin.value += dt * 0.008 * SPIN_K * auto
   }
   void b
   return obj
@@ -1346,10 +1349,11 @@ export class GLScene {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
     this.renderer.toneMappingExposure = 1.15
     maxAniso = this.renderer.capabilities.getMaxAnisotropy()
-    const key = new THREE.DirectionalLight(0xfff6ea, 3.2)
+    // hard space light: one strong key, almost no fill, so night sides fall to black
+    const key = new THREE.DirectionalLight(0xfff8ee, 3.7)
     key.position.set(-1, 0.75, 0.85)
     this.scene.add(key)
-    this.scene.add(new THREE.AmbientLight(0x8890a0, 0.05))
+    this.scene.add(new THREE.AmbientLight(0x8890a0, 0.006))
   }
 
   resize(w: number, h: number, dpr: number) {
@@ -1375,7 +1379,92 @@ export class GLScene {
   has(i: number) { return this.objs.has(i) }
 
   /** items: bodies to show this frame */
-  render(items: { i: number; x: number; y: number; rs: number; alpha: number }[], time: number, dt: number, reduced: boolean, hiRes: boolean, current: number) {
+  // ---- depth of field: everything but the focused body goes through a soft blur ----
+  private rtA: THREE.WebGLRenderTarget | null = null
+  private rtB: THREE.WebGLRenderTarget | null = null
+  private rtC: THREE.WebGLRenderTarget | null = null
+  private fsScene = new THREE.Scene()
+  private fsCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
+  private fsQuad: THREE.Mesh | null = null
+  private blurMat: THREE.ShaderMaterial | null = null
+  private compMat: THREE.ShaderMaterial | null = null
+  private setupDof() {
+    const pw = Math.max(1, Math.round(this.w * GLScene.dpr)), ph = Math.max(1, Math.round(this.h * GLScene.dpr))
+    const mk = (w: number, h: number, samples: number) => {
+      const rt = new THREE.WebGLRenderTarget(w, h, { samples, depthBuffer: samples > 0 })
+      // shaders here write display-ready values, so store them as-is (like the canvas does)
+      rt.texture.colorSpace = THREE.SRGBColorSpace
+      rt.texture.internalFormat = 'RGBA8'
+      return rt
+    }
+    if (!this.rtA || this.rtA.width !== pw || this.rtA.height !== ph) {
+      this.rtA?.dispose(); this.rtB?.dispose(); this.rtC?.dispose()
+      this.rtA = mk(pw, ph, 4)
+      // tone mapping + output encoding into this target, exactly as on screen
+      ;(this.rtA as unknown as { isXRRenderTarget: boolean }).isXRRenderTarget = true
+      this.rtB = mk(Math.ceil(pw / 2), Math.ceil(ph / 2), 0)
+      this.rtC = mk(Math.ceil(pw / 2), Math.ceil(ph / 2), 0)
+    }
+    if (!this.fsQuad) {
+      const vs = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy*2.0, 0.0, 1.0); }`
+      this.blurMat = new THREE.ShaderMaterial({
+        uniforms: { tMap: { value: null }, uDir: { value: new THREE.Vector2() } },
+        vertexShader: vs,
+        fragmentShader: `uniform sampler2D tMap; uniform vec2 uDir; varying vec2 vUv;
+          void main(){
+            vec4 c = texture2D(tMap, vUv)*0.2270;
+            c += (texture2D(tMap, vUv + uDir*1.3846) + texture2D(tMap, vUv - uDir*1.3846))*0.3162;
+            c += (texture2D(tMap, vUv + uDir*3.2308) + texture2D(tMap, vUv - uDir*3.2308))*0.0703;
+            gl_FragColor = c;
+          }`,
+        depthTest: false, depthWrite: false, blending: THREE.NoBlending, toneMapped: false,
+      })
+      this.compMat = new THREE.ShaderMaterial({
+        uniforms: { tSharp: { value: null }, tSoft: { value: null }, uAmt: { value: 0 } },
+        vertexShader: vs,
+        fragmentShader: `uniform sampler2D tSharp, tSoft; uniform float uAmt; varying vec2 vUv;
+          void main(){ gl_FragColor = mix(texture2D(tSharp, vUv), texture2D(tSoft, vUv), uAmt); }`,
+        depthTest: false, depthWrite: false, blending: THREE.NoBlending, toneMapped: false,
+      })
+      this.fsQuad = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.blurMat)
+      this.fsQuad.frustumCulled = false
+      this.fsScene.add(this.fsQuad)
+    }
+  }
+  private renderDof(focus: BodyObj, amt: number) {
+    this.setupDof()
+    const r = this.renderer, c = this.camera
+    const rtA = this.rtA!, rtB = this.rtB!, rtC = this.rtC!
+    const q = this.fsQuad!, bm = this.blurMat!, cm = this.compMat!
+    // 1) everything out of focus -> A
+    focus.group.visible = false
+    r.setRenderTarget(rtA); r.clear(); r.render(this.scene, c)
+    focus.group.visible = true
+    // 2) separable blur at half res, radius ~ 2.6 css px at full strength
+    const rad = 2.6 * GLScene.dpr * amt / 2
+    q.material = bm
+    bm.uniforms.tMap.value = rtA.texture; bm.uniforms.uDir.value.set(rad / rtB.width * 0.5, 0)
+    r.setRenderTarget(rtB); r.render(this.fsScene, this.fsCam)
+    bm.uniforms.tMap.value = rtB.texture; bm.uniforms.uDir.value.set(0, rad / rtC.height * 0.5)
+    r.setRenderTarget(rtC); r.render(this.fsScene, this.fsCam)
+    bm.uniforms.tMap.value = rtC.texture; bm.uniforms.uDir.value.set(rad / rtB.width * 0.5, 0)
+    r.setRenderTarget(rtB); r.render(this.fsScene, this.fsCam)
+    bm.uniforms.tMap.value = rtB.texture; bm.uniforms.uDir.value.set(0, rad / rtC.height * 0.5)
+    r.setRenderTarget(rtC); r.render(this.fsScene, this.fsCam)
+    // 3) composite to the canvas, then the focused body on top, sharp
+    r.setRenderTarget(null); r.clear()
+    q.material = cm
+    cm.uniforms.tSharp.value = rtA.texture; cm.uniforms.tSoft.value = rtC.texture; cm.uniforms.uAmt.value = Math.min(1, amt * 1.4)
+    r.render(this.fsScene, this.fsCam)
+    const hidden: BodyObj[] = []
+    for (const o of this.objs.values()) if (o !== focus && o.group.visible) { o.group.visible = false; hidden.push(o) }
+    r.autoClear = false
+    r.render(this.scene, c)
+    r.autoClear = true
+    for (const o of hidden) o.group.visible = true
+  }
+
+  render(items: { i: number; x: number; y: number; rs: number; alpha: number }[], time: number, dt: number, reduced: boolean, hiRes: boolean, current: number, dof = 0) {
     this.now = time
     for (const o of this.objs.values()) o.group.visible = false
     let maxR = 10
@@ -1419,7 +1508,30 @@ export class GLScene {
     c.near = -maxR * 1.1; c.far = maxR * 1.1
     c.position.set(0, 0, 0)
     c.updateProjectionMatrix()
-    this.renderer.render(this.scene, c)
+    const focus = this.objs.get(current)
+    if (dof > 0.01 && focus && focus.group.visible && items.length > 1) this.renderDof(focus, dof)
+    else this.renderer.render(this.scene, c)
+  }
+
+  /** first-load warmup: wait for the nearby textures, then compile every shader they need */
+  async warm(i: number, hiRes: boolean) {
+    this.prefetch(i, hiRes)
+    // textures kick off more loads as they land (e.g. clouds), so settle until the set stops growing
+    for (let k = 0; k < 4; k++) {
+      const n = texCache.size
+      await Promise.allSettled([...texCache.values()])
+      if (texCache.size === n) break
+    }
+    const near = [i - 1, i, i + 1, i + 2].filter((j) => j >= 0 && j < this.bodies.length).map((j) => this.obj(j))
+    const vis = near.map((o) => o.group.visible)
+    near.forEach((o) => { o.group.visible = true })
+    try {
+      const r = this.renderer as THREE.WebGLRenderer & { compileAsync?: (s: THREE.Object3D, c: THREE.Camera) => Promise<unknown> }
+      // compileAsync warns without the parallel-compile extension, so fall back to a plain compile
+      if (r.compileAsync && r.extensions.has('KHR_parallel_shader_compile')) await r.compileAsync(this.scene, this.camera)
+      else r.compile(this.scene, this.camera)
+    } catch { /* compile is only a warmup */ }
+    near.forEach((o, k) => { o.group.visible = vis[k] })
   }
 
   /** preload textures for slides near i */

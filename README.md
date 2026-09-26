@@ -20,6 +20,13 @@ inspired by the disc carousel at a24.raviklaassens.com, dressed in german+ color
   resolution fallback; 4k maps load lazily for the current slide, 2k otherwise
 - crisp starfield with a faint milky way band, plus a shooting star every 6–15s
 - scroll / drag / swipe / arrow keys / home & end, deep links via `#earth`, `#sun`…
+- framed layout: hairline rounded frame on black margins with corner marks, bracketed mono stats,
+  instant title/stat swaps, spring-physics slide changes (tension 150, friction 16)
+- first load waits on ink for textures, compiled shaders and fonts while the frame draws itself in,
+  then the scene and ui fade up (6s fallback)
+- hard single-key lighting (night sides go dark), depth of field that softens everything but the
+  focused body (off on phones / slow devices), 10% faster auto-spin
+- optional synthesized tick on slide change: `sound [off]` toggle, remembered in localStorage
 - respects `prefers-reduced-motion` (instant cuts, no drift or twinkle)
 
 ```sh
