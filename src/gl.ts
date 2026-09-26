@@ -4,17 +4,25 @@ import type { Body } from './data'
 const BASE = import.meta.env.BASE_URL + 'tex/'
 
 // ---------- per-body visual specs ----------
-type PlanetSpec = { type: 'planet'; tex: string; hi?: boolean; clouds?: boolean; ring?: boolean; atmo?: [number, number, number, number]; tilt?: number; spin?: number }
+type PlanetSpec = { type: 'planet'; tex: string; hi?: boolean; clouds?: boolean; ring?: boolean; atmo?: [number, number, number, number]; atmoScale?: number; tilt?: number; lean?: number; spin?: number }
 type StarSpec = { type: 'star'; scale: number; contrast: number; speck: number; spots: number; spotSize: number; active: number; actSize: number; glow: number; flame: number; proms?: [number, number, number, number, number][] }
 type ImageSpec = { type: 'image'; src: string; fill: number; aspect: number; mask: [number, number]; sat?: number; gain?: number }
-type ProcSpec = { type: 'proc'; kind: 'heliosphere' | 'oort' | 'group' | 'supercluster' | 'laniakea' | 'universe' }
+type ProcSpec = { type: 'proc'; kind: 'heliosphere' | 'oort' | 'group' | 'supercluster' | 'laniakea' | 'universe' | 'dwarf' | 'elliptical' }
+/** black hole: disk [inner, outer] in horizon radii, hot/cool disk colours, ring colour, brightness, quasar glow, view tilt */
+type BHSpec = { type: 'bh'; disk: [number, number]; hot: [number, number, number]; cool: [number, number, number]; ring: [number, number, number]; gain: number; quasar: number; tilt: number; roll: number }
 type GalaxyPal = { gold: V3; grey: V3; blue: V3; dust: V3; knot: V3; warm: V3; warmR: number; knotAmt: number; gain?: number }
 /** satellite: x, y (radii), rx, ry, angle, brightness */
 type Sat = [number, number, number, number, number, number]
 type GalaxySpec = { type: 'galaxy'; arms: number; pitch: number; bar: number; bulge: number; dust: number; seed: number; floc: number; clump: number; ring: number; tilt: number; pa: number; pal?: GalaxyPal; sats?: Sat[]; field?: number }
-type Spec = PlanetSpec | StarSpec | ImageSpec | ProcSpec | GalaxySpec
+type Spec = PlanetSpec | StarSpec | ImageSpec | ProcSpec | GalaxySpec | BHSpec
 
 const SPECS: Record<string, Spec> = {
+  ceres: { type: 'planet', tex: 'ceres', hi: true, spin: 0.03 },
+  makemake: { type: 'planet', tex: 'makemake', hi: true, spin: 0.03 },
+  pluto: { type: 'planet', tex: 'pluto', hi: true, atmo: [0.55, 0.7, 1, 0.22], lean: 0.5, spin: 0.02 },
+  europa: { type: 'planet', tex: 'europa', spin: 0.02 },
+  titan: { type: 'planet', tex: 'titan', atmo: [1, 0.66, 0.3, 1.25], atmoScale: 1.06, spin: 0.015 },
+  kepler22b: { type: 'planet', tex: 'kepler22b', atmo: [0.45, 0.75, 1, 0.9], tilt: 0.3, spin: 0.03 },
   moon: { type: 'planet', tex: 'moon', hi: true, spin: 0.02 },
   mercury: { type: 'planet', tex: 'mercury', hi: true, spin: 0.02 },
   mars: { type: 'planet', tex: 'mars', hi: true, atmo: [0.9, 0.55, 0.4, 0.35], tilt: 0.44, spin: 0.03 },
@@ -34,11 +42,26 @@ const SPECS: Record<string, Spec> = {
   antares: { type: 'star', scale: 3.4, contrast: 0.55, speck: 0.45, spots: 0, spotSize: 0, active: 3, actSize: 0.1, glow: 0.95, flame: 0.85, proms: [[0.6, -1.45, 0.51, 0.38, 1.45], [-0.55, 1.5, 0.46, 0.34, 1.65], [0.05, 1.55, 0.27, 0.2, 1.65]] },
   betelgeuse: { type: 'star', scale: 5, contrast: 0.45, speck: 0.55, spots: 0, spotSize: 0, active: 4, actSize: 0.15, glow: 1.0, flame: 0.9, proms: [[0.62, -1.42, 0.57, 0.42, 1.8], [-0.6, 1.48, 0.51, 0.38, 1.75]] },
   uyscuti: { type: 'star', scale: 3.3, contrast: 0.55, speck: 0.45, spots: 0, spotSize: 0, active: 3, actSize: 0.1, glow: 0.95, flame: 0.85, proms: [[0.5, -1.5, 0.54, 0.4, 1.55], [-0.6, 1.45, 0.49, 0.36, 1.65], [-0.1, -1.55, 0.3, 0.22, 1.65]] },
+  elnath: { type: 'star', scale: 7, contrast: 0.16, speck: 0.3, spots: 0, spotSize: 0, active: 2, actSize: 0.06, glow: 1.0, flame: 0.4 },
+  aludra: { type: 'star', scale: 6, contrast: 0.2, speck: 0.35, spots: 0, spotSize: 0, active: 3, actSize: 0.07, glow: 1.05, flame: 0.5 },
+  pistol: { type: 'star', scale: 5.5, contrast: 0.24, speck: 0.35, spots: 0, spotSize: 0, active: 3, actSize: 0.08, glow: 1.1, flame: 0.6 },
+  vycma: { type: 'star', scale: 3.2, contrast: 0.58, speck: 0.45, spots: 0, spotSize: 0, active: 4, actSize: 0.12, glow: 1.0, flame: 0.95 },
+  st218: { type: 'star', scale: 3.0, contrast: 0.6, speck: 0.45, spots: 0, spotSize: 0, active: 4, actSize: 0.12, glow: 1.0, flame: 0.95 },
+  // black holes: size = event horizon; disk and photon ring are lensed live in the shader
+  sgra: { type: 'bh', disk: [2.6, 5.2], hot: [0.82, 0.9, 1.0], cool: [0.3, 0.45, 0.95], ring: [0.82, 0.9, 1.0], gain: 0.4, quasar: 0, tilt: 0.2, roll: -0.12 },
+  s5: { type: 'bh', disk: [2.6, 6.0], hot: [1.0, 0.94, 0.84], cool: [0.95, 0.6, 0.32], ring: [1.0, 0.92, 0.8], gain: 1.0, quasar: 0.5, tilt: 0.28, roll: 0.1 },
+  ton618: { type: 'bh', disk: [2.6, 6.2], hot: [1.0, 0.72, 0.34], cool: [1.0, 0.3, 0.02], ring: [1.0, 0.8, 0.5], gain: 1.5, quasar: 1.1, tilt: 0.16, roll: -0.08 },
   heliosphere: { type: 'proc', kind: 'heliosphere' },
   oort: { type: 'proc', kind: 'oort' },
   // fill = object diameter / image width. mask = ellipse radii (uv units, 0.5 = edge)
+  helix: { type: 'image', src: 'helix.webp', fill: 0.6, aspect: 1, mask: [0.48, 0.48], sat: 0.95, gain: 1.0 },
+  pillars: { type: 'image', src: 'pillars.webp', fill: 1.1, aspect: 2560 / 2053, mask: [0.47, 0.48], sat: 0.9, gain: 0.95 },
+  horsehead: { type: 'image', src: 'horsehead.webp', fill: 0.9, aspect: 2560 / 2449, mask: [0.48, 0.48], sat: 0.95, gain: 1.0 },
   orion: { type: 'image', src: 'orion.webp', fill: 1.0, aspect: 1, mask: [0.5, 0.5], sat: 0.85, gain: 0.95 },
   omega: { type: 'image', src: 'omega.webp', fill: 0.62, aspect: 1, mask: [0.46, 0.46], sat: 0.8, gain: 1.05 },
+  segue2: { type: 'proc', kind: 'dwarf' },
+  tarantula: { type: 'image', src: 'tarantula.webp', fill: 1.0, aspect: 2048 / 2560, mask: [0.49, 0.47], sat: 0.9, gain: 1.0 },
+  m64: { type: 'image', src: 'm64.webp', fill: 0.82, aspect: 2560 / 2422, mask: [0.48, 0.48], sat: 0.95, gain: 1.05 },
   milkyway: { type: 'galaxy', arms: 2, pitch: 0.24, bar: 1, bulge: 0.15, dust: 1.15, seed: 3.1, floc: 0.55, clump: 1, ring: 0, tilt: -0.95, pa: 0.5 },
   andromeda: {
     type: 'galaxy', arms: 2, pitch: 0.12, bar: 0, bulge: 0.2, dust: 1.25, seed: 7.7, floc: 0.6, clump: 0.9, ring: 0.8, tilt: -1.34, pa: -0.62,
@@ -47,14 +70,16 @@ const SPECS: Record<string, Spec> = {
     sats: [[0.2, 0.3, 0.035, 0.03, 0, 1.6], [-0.42, -0.55, 0.11, 0.065, 0.9, 0.9]],
     field: 1,
   },
-  localgroup: { type: 'proc', kind: 'group' },
+  ic1101: { type: 'proc', kind: 'elliptical' },
   virgo: { type: 'proc', kind: 'supercluster' },
   laniakea: { type: 'proc', kind: 'laniakea' },
   universe: { type: 'proc', kind: 'universe' },
 }
 
 /** how far past radiusKm the visible thing reaches (for spacing) */
-export const EXTENT: Record<string, number> = { saturn: 2.3 }
+export const EXTENT: Record<string, number> = { saturn: 2.3, sgra: 5.6, s5: 6.2, ton618: 6.4, segue2: 1.4, ic1101: 1.6 }
+/** zoom out on these so the whole visible thing (disk, not just the horizon) fits the frame */
+export const FRAME: Record<string, number> = { sgra: 4.0, s5: 4.4, ton618: 4.6 }
 
 // ---------- helpers ----------
 function rng(seed: number) {
@@ -156,6 +181,8 @@ function track(obj: BodyObj, m: THREE.Material & { opacity: number }) {
 
 /** auto-spin speed multiplier for every planet, star and galaxy */
 const SPIN_K = 1.1
+/** planets, moons and the sun turn 2x faster again on top of that */
+const PLANET_SPIN = 2
 
 // ---------- texture cache ----------
 const loader = new THREE.TextureLoader()
@@ -187,7 +214,7 @@ function makePlanet(b: Body, spec: PlanetSpec): BodyObj {
   obj.rot = rot
   const tiltG = new THREE.Group()
   tiltG.rotation.z = -(spec.tilt ?? 0)
-  tiltG.rotation.x = 0.18
+  tiltG.rotation.x = spec.lean ?? 0.18
   rot.add(tiltG)
   const mat = track(obj, new THREE.MeshStandardMaterial({ color: new THREE.Color(b.color), roughness: 1, metalness: 0 })) as THREE.MeshStandardMaterial
   const mesh = new THREE.Mesh(sphere(), mat)
@@ -213,7 +240,7 @@ function makePlanet(b: Body, spec: PlanetSpec): BodyObj {
     }))
     obj.fades.push({ material: am as unknown as THREE.Material & { opacity: number }, base: 1 })
     const atmo = new THREE.Mesh(sphere(), am)
-    atmo.scale.setScalar(1.035)
+    atmo.scale.setScalar(spec.atmoScale ?? 1.035)
     group.add(atmo)
   }
   if (spec.ring) {
@@ -249,8 +276,8 @@ function makePlanet(b: Body, spec: PlanetSpec): BodyObj {
   }
   obj.update = (_t, dt, _rs, reduced, auto) => {
     if (reduced) return
-    mesh.rotation.y += dt * (spec.spin ?? 0.03) * SPIN_K * auto
-    if (clouds) clouds.rotation.y += dt * (spec.spin ?? 0.03) * SPIN_K * (0.25 + 1.0 * auto)
+    mesh.rotation.y += dt * (spec.spin ?? 0.03) * SPIN_K * PLANET_SPIN * auto
+    if (clouds) clouds.rotation.y += dt * (spec.spin ?? 0.03) * SPIN_K * PLANET_SPIN * (0.25 + 1.0 * auto)
   }
   return obj
 }
@@ -262,6 +289,7 @@ type StarLook = { deep: V3; mid: V3; bright: V3; hot: V3; prom: V3; glow?: V3 }
 const GRAN: Record<string, [number, number, number]> = {
   sun: [44, 0.45, 0.6], sirius: [48, 0.55, 0.62], rigel: [46, 0.55, 0.62], pollux: [30, 0.3, 0.75], arcturus: [30, 0.3, 0.75], aldebaran: [28, 0.3, 0.78],
   antares: [17, 0.2, 0.88], betelgeuse: [16, 0.18, 0.9], uyscuti: [16, 0.2, 0.88],
+  elnath: [46, 0.55, 0.62], aludra: [40, 0.5, 0.66], pistol: [36, 0.45, 0.7], vycma: [15, 0.2, 0.9], st218: [14, 0.2, 0.9],
 }
 
 /** hand-tuned ramps per star (deep lanes -> mid -> bright -> white-hot), by type */
@@ -275,13 +303,19 @@ const LOOKS: Record<string, StarLook> = {
   antares: { deep: [0.42, 0.04, 0.02], mid: [0.9, 0.2, 0.04], bright: [1.0, 0.46, 0.12], hot: [1.0, 0.82, 0.55], prom: [0.6, 0.06, 0.02] },
   betelgeuse: { deep: [0.8, 0.26, 0.03], mid: [1.0, 0.54, 0.09], bright: [1.0, 0.82, 0.32], hot: [1.0, 0.95, 0.72], prom: [0.7, 0.1, 0.03] },
   uyscuti: { deep: [0.5, 0.07, 0.02], mid: [0.96, 0.3, 0.04], bright: [1.0, 0.58, 0.14], hot: [1.0, 0.88, 0.62], prom: [0.62, 0.08, 0.02] },
+  elnath: { deep: [0.2, 0.42, 1.0], mid: [0.55, 0.76, 1.0], bright: [0.88, 0.96, 1.0], hot: [0.97, 1.0, 1.0], prom: [0.5, 0.64, 1.0], glow: [0.15, 0.52, 1.0] },
+  aludra: { deep: [0.18, 0.38, 1.0], mid: [0.52, 0.72, 1.0], bright: [0.86, 0.95, 1.0], hot: [0.97, 1.0, 1.0], prom: [0.45, 0.6, 1.0], glow: [0.12, 0.5, 1.0] },
+  pistol: { deep: [0.12, 0.3, 0.95], mid: [0.45, 0.66, 1.0], bright: [0.82, 0.92, 1.0], hot: [0.96, 0.99, 1.0], prom: [0.4, 0.55, 1.0], glow: [0.1, 0.42, 1.0] },
+  vycma: { deep: [0.45, 0.05, 0.02], mid: [0.92, 0.24, 0.05], bright: [1.0, 0.5, 0.13], hot: [1.0, 0.84, 0.58], prom: [0.62, 0.07, 0.02] },
+  st218: { deep: [0.4, 0.03, 0.02], mid: [0.86, 0.18, 0.04], bright: [1.0, 0.42, 0.1], hot: [1.0, 0.78, 0.5], prom: [0.58, 0.05, 0.02] },
 }
 
 /** flares per star: [how many alive, footpoint span (rad), loop height (radii)] */
 const FLARES: Record<string, [number, number, number]> = {
-  sun: [5, 0.22, 0.17], sirius: [3, 0.1, 0.07], rigel: [3, 0.11, 0.08],
+  sun: [6, 0.24, 0.19], sirius: [6, 0.24, 0.2], rigel: [6, 0.26, 0.21],
   pollux: [4, 0.3, 0.22], arcturus: [4, 0.32, 0.24], aldebaran: [4, 0.36, 0.27],
   antares: [5, 0.55, 0.42], betelgeuse: [5, 0.6, 0.46], uyscuti: [5, 0.55, 0.42],
+  elnath: [6, 0.24, 0.2], aludra: [6, 0.26, 0.21], pistol: [6, 0.32, 0.26], vycma: [5, 0.6, 0.46], st218: [5, 0.62, 0.48],
 }
 
 const STAR_FRAG = /* glsl */ `
@@ -454,10 +488,11 @@ void main(){
 
 const FLARE_FRAG = /* glsl */ `
 uniform vec3 uColor, uHotC;
-uniform float opacity, uTime, uSeed, uReveal, uBright, uCore, uWide;
+uniform float opacity, uTime, uSeed, uReveal, uBright, uCore, uWide, uSpeed;
 varying vec2 vUv; varying vec3 vVN;
 void main(){
   float along = vUv.x;
+  float tS = uTime*uSpeed;
   float m = min(along, 1.0 - along)*2.0;          // 0 at the footpoints, 1 at the apex
   float vis = smoothstep(uReveal + 0.02, uReveal - 0.2, m);
   if (vis <= 0.001) discard;
@@ -465,9 +500,9 @@ void main(){
   float soft = pow(face, 1.6);                     // soft volumetric edge
   float core = pow(face, 9.0);                     // hot inner thread
   // plasma streams up from both feet and twists around the ribbon
-  float a = vUv.y*6.2831 + along*9.0 + uTime*0.7 + uSeed;
-  float flow = snoise(vec3(m*7.0 - uTime*0.45, cos(a)*0.9, sin(a)*0.9 + uSeed))*0.5 + 0.5;
-  float fine = snoise(vec3(m*28.0 - uTime*0.9, cos(a)*2.5 + uSeed, sin(a)*2.5))*0.5 + 0.5;
+  float a = vUv.y*6.2831 + along*9.0 + tS*0.7 + uSeed;
+  float flow = snoise(vec3(m*7.0 - tS*0.45, cos(a)*0.9, sin(a)*0.9 + uSeed))*0.5 + 0.5;
+  float fine = snoise(vec3(m*28.0 - tS*0.9, cos(a)*2.5 + uSeed, sin(a)*2.5))*0.5 + 0.5;
   float knots = smoothstep(0.45, 0.95, flow);
   float feet = pow(1.0 - m, 5.0);
   float dens = soft*(0.3 + 0.7*knots)*(0.55 + 0.45*fine)*mix(1.15, 0.7, uWide);
@@ -534,6 +569,10 @@ function makeStar(b: Body, spec: StarSpec): BodyObj {
   // flares: a small pool of 3d loop ribbons on the rotating star. each one lives through
   // emerge -> rise -> brighten -> drain (or, now and then, erupt and drift away), then respawns elsewhere
   const [nFl, flSpan, flH] = FLARES[b.id] ?? [4, 0.2, 0.15]
+  // hot blue/white stars (and the sun) run fast, energetic cycles: quick rise, fast plasma flow, flicker, more eruptions
+  const hotStar = tempK > 7000
+  const energy = hotStar ? 1 : b.id === 'sun' ? 0.6 : 0
+  const flowSpeed = 1 + 1.8 * energy
   type FU = Record<'uGrow' | 'uReveal' | 'uDrift' | 'uBright' | 'uTime', { value: number }>
   type Slot = { g: THREE.Group; u: FU[]; t0: number; D: number; erupt: boolean; hm: number; gap: number }
   const slots: Slot[] = []
@@ -570,8 +609,8 @@ function makeStar(b: Body, spec: StarSpec): BodyObj {
       const rad = wide ? H * (0.13 + 0.05 * r1()) : H * (0.018 + 0.05 * r1() * r1())
       const geo = new THREE.TubeGeometry(curve, 96, rad, wide ? 10 : 7, false)
       const pu = {
-        uColor: { value: V(look.prom) }, uHotC: { value: hotC }, opacity: { value: 1 }, uTime: { value: 0 }, uSeed: { value: k * 5.1 + sIdx * 1.7 },
-        uGrow: { value: 1 }, uDrift: { value: 0 }, uReveal: { value: 1.2 }, uBright: { value: 1 }, uCore: { value: wide ? 0.2 : 1 }, uWide: { value: wide ? 1 : 0 },
+        uColor: { value: hotStar ? V(look.prom.map((v, i) => v * 0.55 + look.bright[i] * 0.45) as V3) : V(look.prom) }, uHotC: { value: hotC }, opacity: { value: 1 }, uTime: { value: 0 }, uSeed: { value: k * 5.1 + sIdx * 1.7 },
+        uGrow: { value: 1 }, uDrift: { value: 0 }, uReveal: { value: 1.2 }, uBright: { value: 1 }, uCore: { value: wide ? 0.2 : 1 }, uWide: { value: wide ? 1 : 0 }, uSpeed: { value: flowSpeed },
       }
       us.push(pu)
       const pm = glow(new THREE.ShaderMaterial({
@@ -589,7 +628,7 @@ function makeStar(b: Body, spec: StarSpec): BodyObj {
   const qW = new THREE.Quaternion(), qT = new THREE.Quaternion(), dv = new THREE.Vector3()
   const place = (sl: Slot) => {
     // mostly on the visible limb (reads as a prominence), some across the disc (bright loops)
-    const limb = r1() < 0.65
+    const limb = r1() < (hotStar ? 0.8 : 0.65)
     const ph = r1() * Math.PI * 2, z = limb ? -0.12 + r1() * 0.35 : 0.3 + r1() * 0.6, q = Math.sqrt(1 - z * z)
     dv.set(Math.cos(ph) * q, Math.sin(ph) * q, z)
     spinG.getWorldQuaternion(qW).invert()
@@ -597,11 +636,12 @@ function makeStar(b: Body, spec: StarSpec): BodyObj {
     sl.g.quaternion.setFromUnitVectors(Y, dv).multiply(qT.setFromAxisAngle(Y, r1() * Math.PI * 2))
   }
   const spawn = (sl: Slot, now: number, pre: number) => {
-    sl.erupt = r1() < 0.16
-    sl.D = sl.erupt ? 18 + r1() * 8 : 9 + r1() * 7
+    sl.erupt = r1() < 0.16 + 0.22 * energy
+    const dk = 1 - 0.62 * energy   // hot stars: cycles of a few seconds
+    sl.D = (sl.erupt ? 18 + r1() * 8 : 9 + r1() * 7) * dk
     sl.hm = sl.erupt ? 1.2 : 0.8 + r1() * 0.4
     sl.t0 = now - pre * sl.D
-    sl.gap = 0.6 + r1() * 3.5
+    sl.gap = (0.6 + r1() * 3.5) * (1 - 0.75 * energy)
     place(sl)
   }
   let flInit = false
@@ -615,6 +655,8 @@ function makeStar(b: Body, spec: StarSpec): BodyObj {
       if (sl.erupt) { grow = 1.1; drift = 0.9 * k * k * sl.hm * flH * 6; bright = 1.1 * (1 - k) }
       else { grow = 1.1 - 0.35 * k; reveal = 1.2 * (1 - ease(k)); bright = 1 - 0.5 * k }
     }
+    // flicker / brightening pulses, strongest on the hot stars
+    if (energy > 0) bright *= (1 + 0.7 * energy) * (1 + energy * (0.22 * Math.sin(tt * 7.3 + sl.hm * 11) + 0.14 * Math.sin(tt * 13.1 + sl.D) + 0.1 * Math.sin(tt * 23.7)))
     for (const pu of sl.u) {
       pu.uGrow.value = grow * sl.hm; pu.uReveal.value = reveal; pu.uDrift.value = drift; pu.uBright.value = bright; pu.uTime.value = tt
     }
@@ -654,7 +696,7 @@ function makeStar(b: Body, spec: StarSpec): BodyObj {
       setPhase(sl, Math.max(0, u), tt)
     }
     uniforms.uPx.value = rs * GLScene.dpr
-    if (!reduced) spinG.rotation.y += dt * 0.012 * SPIN_K * auto
+    if (!reduced) spinG.rotation.y += dt * 0.012 * SPIN_K * (b.id === 'sun' ? PLANET_SPIN : 1) * auto
   }
   return obj
 }
@@ -775,6 +817,7 @@ vec3 starCol(float h){ return h < 0.3 ? vec3(1.0, 0.72, 0.45) : h < 0.55 ? vec3(
 /** dwarf galaxies. kind 0: smooth spheroidal/elliptical. kind 1: lmc-like irregular (grey-blue haze, pink bar, h-alpha knots, grainy stars) */
 const BLOB_FRAG = /* glsl */ `
 uniform float opacity, uPx, uSeed, uKind, uBright, uAsp;
+uniform vec3 uTint;
 varying vec2 vUv;
 void main(){
   vec2 p = (vUv - 0.5)*2.4;                 // quad spans 1.2 radii
@@ -787,7 +830,7 @@ void main(){
   float halo = exp(-r*r*2.5)*0.05*uBright;
   if (uKind < 0.5) {
     float I = exp(-pow(r, 0.55)*4.2)*2.2 + exp(-r*r*6.0)*0.25;
-    c = vec3(1.0, 0.93, 0.84)*I*uBright;
+    c = uTint*I*uBright;
     float N = exp2(floor(log2(clamp(px/2.0, 8.0, 2048.0))));
     float st = starsP(p, N, clamp(I*0.6, 0.0, 0.45), uSeed, px);
     c += vec3(1.0, 0.9, 0.8)*st*0.6;
@@ -854,8 +897,8 @@ function softGlow(obj: BodyObj, x: number, y: number, r: number, c: [number, num
   return mesh
 }
 
-function makeBlob(obj: BodyObj, kind: number, seed: number, bright: number, asp: number) {
-  const u = { opacity: { value: 1 }, uPx: { value: 10 }, uSeed: { value: seed }, uKind: { value: kind }, uBright: { value: bright }, uAsp: { value: asp } }
+function makeBlob(obj: BodyObj, kind: number, seed: number, bright: number, asp: number, tint: [number, number, number] = [1.0, 0.93, 0.84]) {
+  const u = { opacity: { value: 1 }, uPx: { value: 10 }, uSeed: { value: seed }, uKind: { value: kind }, uBright: { value: bright }, uAsp: { value: asp }, uTint: { value: new THREE.Vector3(...tint) } }
   const m = glow(new THREE.ShaderMaterial({ uniforms: u, vertexShader: VERT_UV, fragmentShader: PREMUL + NOISE + HASH + BLOB_FRAG, depthWrite: false, transparent: true, toneMapped: false }))
   obj.fades.push({ material: m as unknown as THREE.Material & { opacity: number }, base: 1 })
   const mesh = new THREE.Mesh(quad(), m)
@@ -937,6 +980,122 @@ function makeGalaxy(b: Body, spec: GalaxySpec): BodyObj {
     if (!reduced) u.uSpin.value += dt * 0.008 * SPIN_K * auto
   }
   void b
+  return obj
+}
+
+// ---------- black holes (live lensed ray march) ----------
+/** schwarzschild lensing in units of the horizon radius (rs = 1): photons bend with the
+ * classic a = -1.5 h² r / r⁵ trick, the thin disk is sampled every time a ray crosses its
+ * plane (so the far side shows up lensed over the top and under the bottom), with doppler
+ * beaming, gravitational redshift, keplerian flow, a photon ring and an optional quasar glow */
+const BH_FRAG = /* glsl */ `
+uniform float uTime, opacity, uQ, uIn, uOut, uGain, uQuasar, uPx;
+uniform vec3 uHot, uCool, uRing;
+uniform mat3 uM;
+varying vec2 vUv;
+float h21(vec2 p){ p = fract(p*vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x*p.y); }
+void main(){
+  vec2 p = (vUv - 0.5)*2.0*uQ;
+  float b = length(p);
+  if (b > uQ) discard;
+  vec3 pos = uM*vec3(p, 12.0);
+  vec3 vel = uM*vec3(0.0, 0.0, -1.0);
+  float h2 = dot(cross(pos, vel), cross(pos, vel));
+  vec3 col = vec3(0.0);
+  float alpha = 0.0;
+  bool captured = false;
+  for (int i = 0; i < 90; i++) {
+    float r = length(pos);
+    if (r < 1.0) { captured = true; break; }
+    if (r > 14.0 && dot(pos, vel) > 0.0) break;
+    float dt = clamp(0.085*r*r/(1.0 + r), 0.02, 1.0);
+    vec3 acc = -1.5*h2*pos/pow(r, 5.0);
+    vec3 v2 = vel + acc*dt;
+    vec3 np = pos + v2*dt;
+    if (pos.y*np.y < 0.0 && alpha < 0.99) {
+      float t = pos.y/(pos.y - np.y);
+      vec3 hp = mix(pos, np, t);
+      float rr = length(hp.xz);
+      if (rr > uIn*0.92 && rr < uOut) {
+        float ang = atan(hp.z, hp.x);
+        float om = pow(rr, -1.5);
+        float fl = ang + uTime*om*1.6;
+        vec3 q1 = vec3(cos(fl)*2.4, sin(fl)*2.4, rr*2.2);
+        float wv = snoise(q1*0.7 + 4.0);
+        float n1 = snoise(q1 + wv*0.6);
+        float n2 = snoise(vec3(cos(fl)*6.0, sin(fl)*6.0, rr*6.5 + 3.1) + wv*0.4);
+        float n3 = snoise(vec3(cos(fl)*15.0, sin(fl)*15.0, rr*15.0 + 7.7));
+        float streak = 0.68 + 0.26*n1 + 0.14*n2 + 0.07*n3;
+        float x = uIn/rr;
+        float T = pow(x, 0.75)*pow(max(1.0 - sqrt(x*0.93), 0.0), 0.25)*2.2;
+        float edge = smoothstep(uIn*0.92, uIn*1.08, rr)*smoothstep(uOut, uOut*0.62, rr);
+        // doppler: disk orbits counter-clockwise about +y
+        vec3 vd = normalize(vec3(-hp.z, 0.0, hp.x));
+        float beta = min(0.7, sqrt(0.5/max(rr - 1.0, 0.3)));
+        float gam = inversesqrt(1.0 - beta*beta);
+        float cosT = dot(vd, -normalize(v2));
+        float g = sqrt(max(1.0 - 1.0/rr, 0.0))/(gam*(1.0 - beta*cosT));
+        float I = T*T*streak*edge*pow(g, 3.0);
+        vec3 c = mix(uCool, uHot, clamp(pow(T, 1.6)*g*0.75, 0.0, 1.0));
+        vec3 e = c*I*uGain*1.3;
+        float a = clamp(edge*(0.35 + 0.55*streak)*clamp(T*1.4, 0.0, 1.0), 0.0, 0.92);
+        col += (1.0 - alpha)*e;
+        alpha += (1.0 - alpha)*a;
+      }
+    }
+    vel = v2; pos = np;
+  }
+  // photon ring just outside the shadow (critical impact parameter 3√3/2 rs)
+  float px = max(uPx, 1.0);
+  float w = max(0.018, 1.6/px);
+  col += (1.0 - alpha*0.6)*uRing*(exp(-pow((b - 2.598)/w, 2.0))*0.9 + exp(-pow((b - 2.64)/(w*5.0), 2.0))*0.18)*uGain;
+  if (captured) alpha = 1.0;
+  // quasar: hot light scattered around the inner disk
+  if (uQuasar > 0.0) {
+    float q = exp(-b*0.9)*0.9 + exp(-b*b/26.0)*0.22 + exp(-b*0.35)*0.08;
+    col += mix(uHot, uCool, 0.6)*q*uQuasar*(captured ? 0.12 : 1.0);
+  }
+  col = 1.0 - exp(-col*1.1);
+  float fade = smoothstep(uQ, uQ*0.8, b);
+  col *= fade;
+  alpha = max(alpha*fade, clamp(max(col.r, max(col.g, col.b)), 0.0, 1.0));
+  gl_FragColor = vec4(col, alpha)*opacity;
+}`
+
+function makeBlackHole(b: Body, spec: BHSpec): BodyObj {
+  const group = new THREE.Group()
+  const obj: BodyObj = { group, fades: [], dot: b.color }
+  const rot = new THREE.Group()
+  group.add(rot)
+  obj.rot = rot
+  const orient = new THREE.Group()
+  orient.rotation.set(spec.tilt, 0, spec.roll, 'ZXY')
+  rot.add(orient)
+  const Q = (EXTENT[b.id] ?? 6) + 0.6
+  const u = {
+    uTime: { value: 0 }, opacity: { value: 1 }, uQ: { value: Q }, uIn: { value: spec.disk[0] }, uOut: { value: spec.disk[1] },
+    uGain: { value: spec.gain }, uQuasar: { value: spec.quasar }, uPx: { value: 300 },
+    uHot: { value: new THREE.Vector3(...spec.hot) }, uCool: { value: new THREE.Vector3(...spec.cool) }, uRing: { value: new THREE.Vector3(...spec.ring) },
+    uM: { value: new THREE.Matrix3() },
+  }
+  const m = glow(new THREE.ShaderMaterial({
+    uniforms: u, vertexShader: VERT_UV, fragmentShader: NOISE + BH_FRAG,
+    depthWrite: false, depthTest: false, transparent: true, toneMapped: false,
+  }))
+  obj.fades.push({ material: m as unknown as THREE.Material & { opacity: number }, base: 1 })
+  const mesh = new THREE.Mesh(quad(), m)
+  mesh.scale.set(2 * Q, 2 * Q, 1)
+  group.add(mesh)
+  const q = new THREE.Quaternion(), m4 = new THREE.Matrix4()
+  let flow = 0
+  obj.update = (_t, dt, rs, reduced) => {
+    if (!reduced) flow += dt
+    u.uTime.value = flow
+    u.uPx.value = rs * GLScene.dpr
+    // view space -> black hole frame
+    q.copy(rot.quaternion).multiply(orient.quaternion).invert()
+    u.uM.value.setFromMatrix4(m4.makeRotationFromQuaternion(q))
+  }
   return obj
 }
 
@@ -1201,6 +1360,51 @@ function makeProc(b: Body, spec: ProcSpec): BodyObj {
       }
       break
     }
+    case 'dwarf': {
+      // segue 2: barely a thousand old stars, a sparse cloud with almost no glow
+      const pts: Pt[] = []
+      for (let i = 0; i < 650; i++) {
+        // plummer profile, scale ~ the half-light radius (1 = half-light here)
+        const m = Math.max(1e-4, r1() * 0.97)
+        const rad = 0.62 / Math.sqrt(Math.pow(m, -2 / 3) - 1)
+        if (rad > 1.7) continue
+        const a = r1() * Math.PI * 2
+        const hot = r1() < 0.04
+        const giant = r1() < 0.08
+        pts.push({ x: Math.cos(a) * rad, y: Math.sin(a) * rad * 0.92, s: giant ? 3.2 + r1() * 1.8 : 1.5 + r1() * 1.3, c: hot ? [0.75, 0.84, 1] : giant ? [1, 0.78, 0.52] : [1, 0.9, 0.76], a: giant ? 1 : 0.6 + r1() * 0.4 })
+      }
+      addPointsTracked(pts)
+      group.add(softGlow(obj, 0, 0, 0.8, [1, 0.88, 0.72], 0.1))
+      break
+    }
+    case 'elliptical': {
+      // ic 1101: a vast smooth golden haze at the heart of abell 2029, with cluster members around it
+      const blobs: { u: { value: number }; r: number }[] = []
+      const blob = (x: number, y: number, r: number, bright: number, asp: number, ang: number, tint: [number, number, number]) => {
+        const bl = makeBlob(obj, 0, x * 91 + y * 37 + 5, bright, asp, tint)
+        bl.mesh.position.set(x, y, 0)
+        bl.mesh.scale.setScalar(r * 2.4)
+        bl.mesh.rotation.z = ang
+        group.add(bl.mesh)
+        blobs.push({ u: bl.uPx, r })
+      }
+      group.add(softGlow(obj, 0, 0, 1.25, [1, 0.8, 0.5], 0.09))
+      blob(0, 0, 1.0, 1.25, 0.56, 0.62, [1.0, 0.8, 0.52])
+      // a few neighbours (sizes loosely in scale), mostly ellipticals and a couple of spirals
+      for (let i = 0; i < 26; i++) {
+        const a = r1() * Math.PI * 2, rad = 0.45 + Math.pow(r1(), 0.7) * 1.1
+        const r = 0.012 + r1() * r1() * 0.07
+        blob(Math.cos(a) * rad, Math.sin(a) * rad * 0.8, r, 0.8 + r1() * 0.6, 0.55 + r1() * 0.45, r1() * 3.14, r1() < 0.2 ? [0.86, 0.88, 1] : [1, 0.86, 0.66])
+      }
+      const pts: Pt[] = []
+      for (let i = 0; i < 260; i++) {
+        const a = r1() * Math.PI * 2, rad = Math.sqrt(r1()) * 1.9
+        pts.push({ x: Math.cos(a) * rad, y: Math.sin(a) * rad * 0.8, s: 0.9 + r1() * 0.9, c: r1() < 0.7 ? WARM : [0.85, 0.88, 1], a: 0.15 + r1() * 0.3 })
+      }
+      addPointsTracked(pts)
+      extraUpdate = (_t, _dt, rs) => { for (const bl of blobs) bl.u.value = rs * bl.r * GLScene.dpr }
+      break
+    }
     case 'supercluster': {
       const nodes = nodesIn(r1, 90, 0.72)
       nodes.push([0.05, 0, 1])
@@ -1368,7 +1572,7 @@ export class GLScene {
     if (!o) {
       const b = this.bodies[i]
       const spec = SPECS[b.id]
-      o = spec.type === 'planet' ? makePlanet(b, spec) : spec.type === 'star' ? makeStar(b, spec) : spec.type === 'image' ? makeImage(b, spec) : spec.type === 'galaxy' ? makeGalaxy(b, spec) : makeProc(b, spec)
+      o = spec.type === 'planet' ? makePlanet(b, spec) : spec.type === 'star' ? makeStar(b, spec) : spec.type === 'image' ? makeImage(b, spec) : spec.type === 'galaxy' ? makeGalaxy(b, spec) : spec.type === 'bh' ? makeBlackHole(b, spec) : makeProc(b, spec)
       o.group.visible = false
       this.scene.add(o.group)
       this.objs.set(i, o)

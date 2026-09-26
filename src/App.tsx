@@ -319,7 +319,7 @@ export default function App() {
           onPointerCancel={onPointerUp}
           role="group"
           aria-roledescription="carousel"
-          aria-label="scale tour, from the moon to the observable universe"
+          aria-label="scale tour, from ceres to the observable universe"
           tabIndex={0}
           style={{ opacity: loaded ? 1 : 0 }}
           data-loaded={loaded || undefined}
@@ -354,9 +354,9 @@ export default function App() {
               aria-atomic="true"
             >
               <p className="text-accent">[{pad2(active + 1)}]</p>
-              <h1 className="mt-1.5 font-serif text-[42px] leading-[1.02] tracking-normal text-paper text-balance md:text-[60px]">{body.name}</h1>
+              <h1 className="mt-1.5 font-mono text-[34px] leading-[1.05] tracking-[-0.01em] text-paper text-balance md:text-[48px]">{body.name}</h1>
               <dl className="mt-4 space-y-1 md:mt-5">
-                <Stat label={body.sphere ? 'radius' : 'across'} value={`${size.value} ${size.unit}`} />
+                <Stat label={body.dim ?? (body.sphere ? 'radius' : 'across')} value={`${size.value} ${size.unit}`} />
                 <Stat label="vs previous" value={vsPrev ? times(vsPrev) : '—'} note={vsPrev ? prev!.name.replace(/^the /, '') : 'where i start'} />
                 <Stat label="vs earth" value={times(vsEarth)} />
               </dl>
@@ -371,10 +371,14 @@ export default function App() {
                   <button onClick={() => setCredits(false)} className="font-mono text-[11px] tracking-[0.05em] text-fog hover:text-paper">[close]</button>
                 </div>
                 <ul className="mt-3 space-y-1.5">
-                  <li>planet maps: <a className="text-paper-dim underline decoration-line underline-offset-2 hover:text-accent" href="https://www.solarsystemscope.com/textures/">solar system scope</a>, cc by 4.0 (based on nasa data)</li>
+                  <li>planet maps: <a className="text-paper-dim underline decoration-line underline-offset-2 hover:text-accent" href="https://www.solarsystemscope.com/textures/">solar system scope</a>, cc by 4.0 (based on nasa data; ceres &amp; makemake are their illustrative maps)</li>
+                  <li>pluto: nasa/jhuapl/swri (new horizons), unimaged south filled in · europa: usgs voyager/galileo mosaic · titan: nasa/jpl-caltech/ssi (cassini), toned to its haze — public domain</li>
+                  <li>helix nebula: eso — cc by 4.0 · horsehead nebula: nasa, esa &amp; the hubble heritage team (aura/stsci) — cc by 4.0</li>
+                  <li>pillars of creation: nasa, esa, csa, stsci; j. depasquale, a. koekemoer, a. pagan (stsci) — webb, cc by 4.0</li>
+                  <li>tarantula nebula: nasa, esa, eso, d. lennon &amp; e. sabbi (esa/stsci) et al. — hubble, cc by 4.0 · black eye galaxy (m64): nasa, esa, hubble (2026 wfc3 image) — public domain</li>
                   <li>orion nebula: nasa, esa, m. robberto (stsci/esa) &amp; the hubble orion treasury project team — public domain</li>
                   <li>omega centauri: eso/inaf-vst/omegacam, a. grado, l. limatola — cc by 4.0</li>
-                  <li>the sun &amp; stars, the milky way, andromeda, the local group’s galaxies, the heliosphere, oort cloud, superclusters &amp; the observable universe are live procedural renders (illustrations, styled after eso, hubble &amp; amateur astrophotos). sizes &amp; sources in the repo’s src/data.ts.</li>
+                  <li>kepler-22b, the black holes (live lensed ray march), segue 2, ic 1101, the sun &amp; stars, the milky way, andromeda, the heliosphere, oort cloud, superclusters &amp; the observable universe are live procedural renders (illustrations, styled after eso, hubble &amp; amateur astrophotos). sizes &amp; sources in the repo’s src/data.ts.</li>
                 </ul>
                 <p className="mt-3 text-fog">made by german, for fun. images are toned to fit the page.</p>
               </div>

@@ -1,5 +1,5 @@
 import { BODIES, type Body } from './data'
-import { GLScene, EXTENT } from './gl'
+import { GLScene, EXTENT, FRAME } from './gl'
 import { Background } from './background'
 
 const GAP = 0.2 // gap between neighbors, in units of the bigger one's radius
@@ -81,7 +81,8 @@ export class Scene {
     if (!h || !this.gl) return null
     const kind = this.gl.grabKind(h.i)
     if (!kind) return null
-    const r = h.rs * (kind === 'rotate' ? 1.04 : 0.9)
+    const ext = EXTENT[this.bodies[h.i].id] ?? 1
+    const r = h.rs * (kind === 'rotate' ? Math.max(1.04, ext * 0.8) : 0.9 * ext)
     if (Math.hypot(x - h.x, y - h.y) > Math.max(r, 16)) return null
     return { i: h.i, kind, rs: h.rs }
   }
@@ -93,7 +94,10 @@ export class Scene {
 
   /** resolves once fonts, the first slides' textures and their shaders are ready */
   async ready(i: number) {
-    await Promise.all([document.fonts?.ready ?? Promise.resolve(), this.gl?.warm(i, this.hiRes)])
+    const fonts = document.fonts
+      ? Promise.all(['400 16px "Courier Prime"', '700 16px "Courier Prime"', '400 16px "Instrument Serif"', '400 16px "Inter"'].map((f) => document.fonts.load(f).catch(() => null))).then(() => document.fonts.ready)
+      : Promise.resolve()
+    await Promise.all([fonts, this.gl?.warm(i, this.hiRes)])
   }
 
   draw(s: number, time: number) {
@@ -106,7 +110,8 @@ export class Scene {
     let t = s - a
     if (a >= n - 1) { a = n - 2; t = 1 }
     const b = a + 1
-    const Ra = bodies[a].radiusKm, Rb = bodies[b].radiusKm
+    // framing radius: the horizon for most things, zoomed out for black holes so their disks fit
+    const Ra = bodies[a].radiusKm * (FRAME[bodies[a].id] ?? 1), Rb = bodies[b].radiusKm * (FRAME[bodies[b].id] ?? 1)
     const Rref = Math.exp(Math.log(Ra) + (Math.log(Rb) - Math.log(Ra)) * t)
     const { cx, cy, base } = this.layout
     const k = base / Rref
@@ -182,7 +187,7 @@ export class Scene {
     for (const l of labels) {
       const px = x + l.x * rs, py = y - l.y * rs
       if (l.r === 0) {
-        o.font = `${Math.round(10 * u)}px "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace`
+        o.font = `${Math.round(10 * u)}px "Courier Prime", "Courier New", ui-monospace, SFMono-Regular, Menlo, monospace`
         o.fillStyle = `rgba(161,161,170,${0.55 * a})`
         o.textAlign = 'center'
         o.fillText(l.name, px, py - 10 * u)
@@ -195,7 +200,7 @@ export class Scene {
       o.strokeStyle = l.major ? `rgba(212,165,116,${0.55 * a})` : `rgba(161,161,170,${0.35 * a})`
       o.lineWidth = 1
       o.beginPath(); o.moveTo(lx, ly); o.lineTo(lx + sx * 10 * u, ly - 10 * u); o.lineTo(lx + sx * 18 * u, ly - 10 * u); o.stroke()
-      o.font = `${Math.round((l.major ? 11 : 10) * u)}px "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace`
+      o.font = `${Math.round((l.major ? 11 : 10) * u)}px "Courier Prime", "Courier New", ui-monospace, SFMono-Regular, Menlo, monospace`
       o.fillStyle = l.major ? `rgba(212,165,116,${0.9 * a})` : `rgba(161,161,170,${0.75 * a})`
       o.textAlign = l.left ? 'right' : 'left'
       o.fillText(l.name, lx + sx * 22 * u, ly - 10 * u)
@@ -203,24 +208,13 @@ export class Scene {
     }
   }
 
-  private marker(x: number, y: number, rs: number, name: string, a: number) {
+  /** the previous body keeps a thin ring; its name lives in the stats ('vs previous'), not on the canvas */
+  private marker(x: number, y: number, rs: number, _name: string, a: number) {
     const o = this.octx
-    const u = this.ui
-    const ring = Math.max(rs + 7 * u, 11 * u)
-    o.strokeStyle = `rgba(212,165,116,${0.7 * a})`
+    const ring = Math.max(rs + 7 * this.ui, 11 * this.ui)
+    o.strokeStyle = `rgba(212,165,116,${0.55 * a})`
     o.lineWidth = 1
     o.beginPath(); o.arc(x, y, ring, 0, Math.PI * 2); o.stroke()
-    o.font = `${Math.round(11 * this.ui)}px "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace`
-    const flip = x - ring - 40 * u - o.measureText(name).width < 12
-    const sx = flip ? 1 : -1
-    // on phones the text sits below the bodies, so the leader goes up instead
-    const sy = this.w < 768 ? -1 : 1
-    const lx = x + sx * ring * 0.7071, ly = y + sy * ring * 0.7071
-    const ex = lx + sx * 26 * u, ey = ly + sy * 26 * u
-    o.beginPath(); o.moveTo(lx, ly); o.lineTo(ex, ey); o.lineTo(ex + sx * 14 * u, ey); o.stroke()
-    o.fillStyle = `rgba(161,161,170,${a})`
-    o.textAlign = flip ? 'left' : 'right'
-    o.textBaseline = 'middle'
-    o.fillText(name, ex + sx * 20 * u, ey)
   }
+
 }
