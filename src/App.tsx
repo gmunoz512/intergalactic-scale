@@ -319,7 +319,7 @@ export default function App() {
           onPointerCancel={onPointerUp}
           role="group"
           aria-roledescription="carousel"
-          aria-label="scale tour, from ceres to the observable universe"
+          aria-label="intergalactic scale tour, from ceres to the observable universe"
           tabIndex={0}
           style={{ opacity: loaded ? 1 : 0 }}
           data-loaded={loaded || undefined}
@@ -337,7 +337,7 @@ export default function App() {
               <a href="https://gmunoz512.github.io/german-plus/" className="font-serif text-2xl leading-none tracking-normal text-paper">
                 german<span className="text-accent">+</span>
               </a>
-              <p className="mt-1.5 text-fog">scale tour</p>
+              <p className="mt-1.5 text-fog">intergalactic scale tour</p>
             </div>
             {/* top-right: counter + sound */}
             <div className="absolute right-5 top-5 flex flex-col items-end gap-1.5 md:right-7 md:top-7">
