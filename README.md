@@ -37,8 +37,8 @@ inspired by the disc carousel at a24.raviklaassens.com, dressed in german+ color
 
 ```sh
 npm install
-npm run dev      # http://localhost:5173/scale-tour/
-npm run build && npm run preview   # http://localhost:4173/scale-tour/
+npm run dev      # http://localhost:5173/intergalactic-scale/
+npm run build && npm run preview   # http://localhost:4173/intergalactic-scale/
 ```
 
 sizes and their sources live in [`src/data.ts`](src/data.ts). planets use nasa fact sheet
