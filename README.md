@@ -1,4 +1,4 @@
-# intergalactic scale tour
+# intergalactic scale
 
 a quiet walk from ceres to the observable universe, one size at a time. each slide
 brings in something bigger, and the thing before it shrinks down to its true relative

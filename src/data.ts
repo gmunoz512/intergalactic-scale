@@ -1,5 +1,5 @@
 /**
- * intergalactic scale tour data.
+ * intergalactic scale data.
  *
  * `radiusKm` is always half the size we compare (for structures that are not
  * spheres, it's half the quoted diameter / extent). ratios use radiusKm.

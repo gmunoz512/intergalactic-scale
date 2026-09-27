@@ -319,7 +319,7 @@ export default function App() {
           onPointerCancel={onPointerUp}
           role="group"
           aria-roledescription="carousel"
-          aria-label="intergalactic scale tour, from ceres to the observable universe"
+          aria-label="intergalactic scale, from ceres to the observable universe"
           tabIndex={0}
           style={{ opacity: loaded ? 1 : 0 }}
           data-loaded={loaded || undefined}
@@ -337,7 +337,7 @@ export default function App() {
               <a href="https://gmunoz512.github.io/german-plus/" className="font-serif text-2xl leading-none tracking-normal text-paper">
                 german<span className="text-accent">+</span>
               </a>
-              <p className="mt-1.5 text-fog">intergalactic scale tour</p>
+              <p className="mt-1.5 text-fog">intergalactic scale</p>
             </div>
             {/* top-right: counter + sound */}
             <div className="absolute right-5 top-5 flex flex-col items-end gap-1.5 md:right-7 md:top-7">
@@ -404,9 +404,6 @@ export default function App() {
               </div>
               <div className="mt-3.5 flex items-center justify-between">
                 <p className="text-fog">
-                  <span className="hidden md:inline">[scroll · drag · ← →] <span className="text-fog/70">drag a body to spin it</span></span>
-                  <span className="md:hidden">[swipe · touch to spin]</span>
-                  <span className="mx-2 text-line">/</span>
                   <button onClick={() => setCredits((v) => !v)} className="text-fog transition-colors hover:text-paper" aria-expanded={credits}>
                     credits
                   </button>
