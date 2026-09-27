@@ -72,6 +72,13 @@
  * [lania]     tully et al. 2014, nature 513 71 — ~160 mpc ≈ 520 million ly across.
  * [ou]        wikipedia "observable universe" — comoving diameter ~93 billion ly
  *             (8.8 × 10^26 m).
+ * [lis]       facts marked `quote: 'lis'` are verbatim (lowercased) from neil degrasse tyson &
+ *             lindsey nyx walker, "lost in space: 5,000 facts for navigating the universe"
+ *             (national geographic, 2026), as quoted in:
+ *             kirkus (starred review, jul 2026) — earth, the sun, sagittarius a*
+ *             https://www.kirkusreviews.com/book-reviews/neil-degrasse-tyson/lost-in-space-3/
+ *             penguin random house book page — jupiter, the observable universe
+ *             https://www.penguinrandomhouse.com/books/826774/lost-in-space-by-neil-degrasse-tyson-and-lindsey-nyx-walker/
  */
 
 export type Kind =
@@ -114,6 +121,8 @@ export interface Body {
   /** galaxies: tilt (1 = face-on) */
   tilt?: number
   fact: string
+  /** set when `fact` is a verbatim quote from a book (see [lis] above) */
+  quote?: 'lis'
   source: string
   note?: string
 }
@@ -137,17 +146,17 @@ export const BODIES: Body[] = [
   { id: 'titan', accent: '#eeb264', name: 'titan', kind: 'rocky', radiusKm: 2574.7, sphere: true, color: '#d9a04e', color2: '#a8742e', fact: 'a moon bigger than mercury, with rain, rivers and seas of liquid methane.', source: 'titan' },
   { id: 'mars', accent: '#e8845a', name: 'mars', kind: 'rocky', radiusKm: 3389.5, sphere: true, color: '#b5623a', color2: '#7a3a22', fact: 'home to olympus mons, a volcano about 2.5× taller than everest.', source: 'nasa-fs' },
   { id: 'venus', accent: '#ecd29c', name: 'venus', kind: 'rocky', radiusKm: 6051.8, sphere: true, color: '#d9bf8c', color2: '#b09366', fact: 'hot enough to melt lead, under clouds of sulfuric acid.', source: 'nasa-fs' },
-  { id: 'earth', accent: '#7fb8e6', name: 'earth', kind: 'earth', radiusKm: 6371.0, sphere: true, color: '#2f5f8f', color2: '#4f7a3f', fact: 'everyone i know, and everyone i ever will, is on here.', source: 'nasa-fs' },
+  { id: 'earth', accent: '#7fb8e6', name: 'earth', kind: 'earth', radiusKm: 6371.0, sphere: true, color: '#2f5f8f', color2: '#4f7a3f', fact: 'if we filled a giant balloon with all the water on earth, it would stretch 860 miles in diameter.', quote: 'lis', source: 'nasa-fs' },
   { id: 'kepler22b', accent: '#82c8dc', name: 'kepler-22b', kind: 'ice', radiusKm: 2.1 * R_EARTH, sphere: true, color: '#5f93ad', color2: '#2f5f7a', fact: 'the first planet kepler found in its star’s habitable zone, 640 light-years away.', source: 'k22b', note: 'radius uncertain (~2.1–2.4 r⊕); what it’s made of is unknown, so this is an illustration.' },
   { id: 'neptune', accent: '#7c9df4', name: 'neptune', kind: 'ice', radiusKm: 24_622, sphere: true, color: '#3f63c7', color2: '#2d4799', fact: 'winds up to 2,000 km/h. the fastest we know of in the solar system.', source: 'nasa-fs' },
   { id: 'uranus', accent: '#a2e2e8', name: 'uranus', kind: 'ice', radiusKm: 25_362, sphere: true, color: '#8fcfd6', color2: '#6fb2bb', fact: 'it rolls around the sun on its side, tipped about 98°.', source: 'nasa-fs' },
   { id: 'saturn', accent: '#ead49e', name: 'saturn', kind: 'ringed', radiusKm: 58_232, sphere: true, color: '#d8c08a', color2: '#b39866', fact: 'its rings are ~280,000 km wide but mostly just tens of meters thick.', source: 'nasa-fs' },
-  { id: 'jupiter', accent: '#e4c49e', name: 'jupiter', kind: 'gas', radiusKm: 69_911, sphere: true, color: '#c9a27a', color2: '#8c6446', fact: 'the great red spot is a storm wider than earth, running for centuries.', source: 'nasa-fs' },
-  { id: 'sun', accent: '#ffc95c', name: 'the sun', kind: 'star', radiusKm: R_SUN, sphere: true, color: '#fff1d6', tempK: 5772, fact: 'about 99.8% of all the mass in our solar system.', source: 'iau' },
+  { id: 'jupiter', accent: '#e4c49e', name: 'jupiter', kind: 'gas', radiusKm: 69_911, sphere: true, color: '#c9a27a', color2: '#8c6446', fact: 'if you weigh 150 pounds on earth, you’d weigh 380 pounds on jupiter.', quote: 'lis', source: 'nasa-fs' },
+  { id: 'sun', accent: '#ffc95c', name: 'the sun', kind: 'star', radiusKm: R_SUN, sphere: true, color: '#fff1d6', tempK: 5772, fact: 'the sunlight warming your face today started as photons in the sun’s core when neanderthals were still around.', quote: 'lis', source: 'iau' },
   { id: 'sirius', accent: '#bcd6ff', name: 'sirius a', kind: 'star', radiusKm: 1.711 * R_SUN, sphere: true, color: '#cfe0ff', tempK: 9940, fact: 'the brightest star in the night sky, 8.6 light-years away.', source: 'sirius' },
   { id: 'elnath', accent: '#c0d8ff', name: 'elnath', kind: 'star', radiusKm: 4.2 * R_SUN, sphere: true, color: '#d6e2ff', tempK: 13_824, fact: 'the tip of taurus’ northern horn, a blue-white giant.', source: 'elnath' },
   { id: 'pollux', accent: '#ffbc74', name: 'pollux', kind: 'star', radiusKm: 9.06 * R_SUN, sphere: true, color: '#ffc58a', tempK: 4586, fact: 'an orange giant with a planet of its own, thestias.', source: 'pollux' },
-  { id: 'sgra', accent: '#c6ddff', dim: 'horizon radius', name: 'sagittarius a*', kind: 'blackhole', radiusKm: RS(4.15e6), sphere: true, color: '#cfe0ff', fact: 'the black hole at the heart of the milky way. 4 million suns, quietly starving.', source: 'sgra', note: 'size is the event horizon; the shadow the eht imaged is ~2.6× wider.' },
+  { id: 'sgra', accent: '#c6ddff', dim: 'horizon radius', name: 'sagittarius a*', kind: 'blackhole', radiusKm: RS(4.15e6), sphere: true, color: '#cfe0ff', fact: 'a black hole with earth’s mass…would have a radius of just nine millimeters.', quote: 'lis', source: 'sgra', note: 'size is the event horizon; the shadow the eht imaged is ~2.6× wider.' },
   { id: 'arcturus', accent: '#ffb06a', name: 'arcturus', kind: 'star', radiusKm: 25.4 * R_SUN, sphere: true, color: '#ffb574', tempK: 4286, fact: 'its light opened the 1933 chicago world’s fair.', source: 'arcturus' },
   { id: 'aldebaran', accent: '#ffa060', name: 'aldebaran', kind: 'star', radiusKm: 45.1 * R_SUN, sphere: true, color: '#ffa865', tempK: 3900, fact: 'the red eye of taurus. pioneer 10 is drifting its way.', source: 'aldebaran' },
   { id: 'aludra', accent: '#b8d0ff', name: 'aludra', kind: 'star', radiusKm: 54 * R_SUN, sphere: true, color: '#c8d8ff', tempK: 15_800, fact: 'a blue supergiant in canis major, probably done being a red one.', source: 'aludra', note: 'estimates range ~54–80 r☉.' },
@@ -175,7 +184,7 @@ export const BODIES: Body[] = [
   { id: 'ic1101', accent: '#f2ce8a', name: 'ic 1101', kind: 'elliptical', radiusKm: 850_000 * LY, sphere: false, color: '#e8c88a', fact: 'one of the biggest galaxies known, a golden haze of ~100 trillion old stars.', source: 'ic1101', note: '~1.7 million ly by the newest deep imaging; older figures (4 million ly+) include a diffuse halo.' },
   { id: 'virgo', accent: '#e2d0ae', name: 'virgo supercluster', kind: 'supercluster', radiusKm: 55_000_000 * LY, sphere: false, color: '#d4a574', fact: 'a hundred-ish galaxy groups and clusters, us somewhere on the edge.', source: 'virgo' },
   { id: 'laniakea', accent: '#e8c99c', name: 'laniakea', kind: 'laniakea', radiusKm: 260_000_000 * LY, sphere: false, color: '#d4a574', fact: 'hawaiian for “immeasurable heaven.” 100,000 galaxies flowing one way.', source: 'lania' },
-  { id: 'universe', accent: '#eeede8', name: 'the observable universe', kind: 'universe', radiusKm: 46.5e9 * LY, sphere: false, color: '#d4a574', fact: 'everything light has had time to reach us from. that’s the edge, for now.', source: 'ou', note: 'comoving size; the universe itself may be infinite.' },
+  { id: 'universe', accent: '#eeede8', name: 'the observable universe', kind: 'universe', radiusKm: 46.5e9 * LY, sphere: false, color: '#d4a574', fact: 'astronomers estimate there are two trillion galaxies in the observable universe.', quote: 'lis', source: 'ou', note: 'comoving size; the universe itself may be infinite.' },
 ]
 
 export const EARTH = BODIES.find((b) => b.id === 'earth')!

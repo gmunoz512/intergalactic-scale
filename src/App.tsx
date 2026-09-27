@@ -360,7 +360,12 @@ export default function App() {
                 <Stat label="vs earth" value={times(vsEarth)} />
               </dl>
               <p className="mt-4 font-mono text-[15px] leading-[1.5] tracking-[0.01em] text-paper-dim md:mt-5 md:text-[18px] md:leading-[1.45]">{body.fact}</p>
-              {body.note && <p className="mt-2 hidden font-mono text-[11px] leading-relaxed tracking-[0.02em] text-fog md:block">{body.note}</p>}
+              {body.quote === 'lis' && (
+                <p className="mt-2 font-mono text-[10px] leading-none tracking-[0.04em] text-fog md:mt-2.5 md:text-[11px]">
+                  <span className="text-accent/60" aria-hidden>—</span> <cite className="not-italic">lost in space</cite>, tyson &amp; walker
+                </p>
+              )}
+              {body.note && <p className={`${body.quote ? 'mt-3.5' : 'mt-2'} hidden font-mono text-[11px] leading-relaxed tracking-[0.02em] text-fog md:block`}>{body.note}</p>}
             </section>
 
 
