@@ -2,14 +2,12 @@ import { BODIES, type Body } from './data'
 import { GLScene, EXTENT, FRAME } from './gl'
 import { Background } from './background'
 
-const GAP = 0.5 // gap between neighbors, in units of the bigger one's visual extent
+const GAP = 0.2 // gap between neighbors, in units of the bigger one's radius
 const THETA = (13 * Math.PI) / 180
 const DIR = [Math.cos(THETA), -Math.sin(THETA)]
 const TEASE = 0.06
 
 export interface Layout { cx: number; cy: number; base: number }
-/** per-slide framing: scale on the hero and a horizontal shift, so a big previous body still clears the text and frame */
-interface Fit { f: number; cx: number }
 
 /** device pixel ratio: up to 3, but keep the drawing buffer under ~4k×2k×1.6 */
 export function pickDpr(w: number, h: number) {
@@ -34,7 +32,6 @@ export class Scene {
   private hiRes = false
   private lastTime = 0
   layout: Layout = { cx: 0, cy: 0, base: 200 }
-  private fits: Fit[] = []
   reduced = false
   /** ui scale for very large viewports (4k at 1x) */
   ui = 1
@@ -67,39 +64,8 @@ export class Scene {
     this.bgCanvas.style.filter = this.dofOn ? 'blur(0.6px)' : ''
     const base = mobile ? Math.min(w * 0.34, h * 0.2) : Math.min(h * 0.3, w * 0.22)
     this.layout = mobile ? { cx: w * 0.5, cy: h * 0.36, base } : { cx: w * 0.6, cy: h * 0.5, base }
-    this.fits = this.bodies.map((_, i) => this.fit(i, mobile))
     // 4k maps once the hero body is big on screen in device pixels
     this.hiRes = base * 2 * this.dpr > 700
-  }
-
-  /**
-   * how much to shrink the hero (and where to slide it) so the previous body, its ring and the gap
-   * stay inside the free area: right of the stats panel and above the footer on desktop, inside the
-   * frame and above the text block on mobile. true relative scale is untouched; only the camera moves.
-   */
-  private fit(i: number, mobile: boolean): Fit {
-    const { w, h, ui, bodies } = this
-    const { cx, cy, base } = this.layout
-    if (i === 0) return { f: 1, cx }
-    const EX = (j: number) => EXTENT[bodies[j].id] ?? 1
-    const Rc = base / (FRAME[bodies[i].id] ?? 1)
-    const Ec = Rc * EX(i)
-    const Ep = Rc * (bodies[i - 1].radiusKm / bodies[i].radiusKm) * EX(i - 1)
-    const D = Ec + Ep + GAP * Math.max(Ec, Ep)
-    const ringP = (f: number) => Math.max(Ep * f + 7 * ui, 11 * ui)
-    const ringC = (f: number) => 1.1 * Ec * f + 8
-    const left = mobile ? 14 * ui : (28 + 320 + 28) * ui
-    const bottom = mobile ? h - 400 * ui : h - 84 * ui
-    const cxCap = mobile ? w : w * 0.68
-    let f = 1
-    for (; f > 0.3; f -= 0.01) {
-      const need = left + D * f * DIR[0] + ringP(f)
-      const cxMax = Math.min(cxCap, w - ringC(f) - (mobile ? 14 : 24) * ui)
-      if (need > cxMax && need > cx) continue
-      if (cy - D * f * DIR[1] + ringP(f) > bottom) continue
-      return { f, cx: Math.max(cx, need) }
-    }
-    return { f, cx }
   }
 
   /** step resolution down one notch; returns false if already at the floor */
@@ -150,10 +116,8 @@ export class Scene {
     // framing radius: the horizon for most things, zoomed out for black holes so their disks fit
     const Ra = bodies[a].radiusKm * (FRAME[bodies[a].id] ?? 1), Rb = bodies[b].radiusKm * (FRAME[bodies[b].id] ?? 1)
     const Rref = Math.exp(Math.log(Ra) + (Math.log(Rb) - Math.log(Ra)) * t)
-    const { cy, base } = this.layout
-    const fa = this.fits[a] ?? { f: 1, cx: this.layout.cx }, fb = this.fits[b] ?? fa
-    const cx = fa.cx + (fb.cx - fa.cx) * t
-    const k = (base * Math.exp(Math.log(fa.f) + (Math.log(fb.f) - Math.log(fa.f)) * t)) / Rref
+    const { cx, cy, base } = this.layout
+    const k = base / Rref
 
     // ease the accent toward the current slide's (~500ms), like the css variable
     const tgt = Scene.rgb(bodies[Math.round(s)].accent)
@@ -167,8 +131,8 @@ export class Scene {
     const ext = (i: number) => bodies[i].radiusKm * (EXTENT[bodies[i].id] ?? 1)
     const rel = new Array<number>(n)
     rel[a] = 0
-    for (let i = a + 1; i < n; i++) rel[i] = rel[i - 1] + ext(i - 1) + ext(i) + GAP * Math.max(ext(i - 1), ext(i))
-    for (let i = a - 1; i >= 0; i--) rel[i] = rel[i + 1] - (ext(i + 1) + ext(i) + GAP * Math.max(ext(i + 1), ext(i)))
+    for (let i = a + 1; i < n; i++) rel[i] = rel[i - 1] + ext(i - 1) + ext(i) + GAP * bodies[i].radiusKm
+    for (let i = a - 1; i >= 0; i--) rel[i] = rel[i + 1] - (ext(i + 1) + ext(i) + GAP * bodies[i + 1].radiusKm)
     const camRel = t * rel[b] * (Rref / Rb)
 
     const cur = Math.round(s)
