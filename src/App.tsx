@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { BODIES, EARTH, formatLength, times } from './data'
 import { Scene, uiScale } from './scene'
+import { renderClick } from './click'
 
 const N = BODIES.length
 const pad2 = (n: number) => String(n).padStart(2, '0')
@@ -10,20 +11,57 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v
 function frameMargin(w: number) { return w < 768 ? 12 : Math.round(Math.max(32, Math.min(64, w * 0.026))) }
 const viewport = () => ({ w: innerWidth, h: innerHeight, m: frameMargin(innerWidth) })
 
-/** a short, dry, quiet mechanical tick, synthesized */
+/**
+ * the slide click: always on, unlocked by the first real user gesture (browsers keep audio
+ * suspended until then). one click per slide passed; a fast flick queues them on the audio
+ * clock at least MIN_GAP apart so they ratchet instead of smearing, and drops any backlog past a few.
+ */
 let audio: AudioContext | null = null
-function tick() {
-  if (!audio) return
-  const t = audio.currentTime
-  const len = Math.floor(audio.sampleRate * 0.03)
-  const buf = audio.createBuffer(1, len, audio.sampleRate)
-  const d = buf.getChannelData(0)
-  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (len * 0.09))
+let out: GainNode | null = null
+let nextAt = 0
+let resumedAt = -1e9
+const MIN_GAP = 0.034
+const MAX_AHEAD = 0.12
+function unlockAudio() {
+  // a wheel alone doesn't grant activation; creating a context then would only log a warning
+  const ua = (navigator as Navigator & { userActivation?: { isActive: boolean } }).userActivation
+  if (ua && !ua.isActive) return false
+  try {
+    if (!audio) {
+      audio = new AudioContext({ latencyHint: 'interactive' })
+      out = audio.createGain(); out.gain.value = 0.16
+      // gentle top-end rounding so it reads as plastic, not digital
+      const lp = audio.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 11000; lp.Q.value = 0.5
+      out.connect(lp).connect(audio.destination)
+    }
+    if (audio.state !== 'running') { resumedAt = performance.now(); audio.resume().catch(() => {}) }
+  } catch { return false }
+  return true
+}
+function click() {
+  // the very first gesture's click lands while resume() is still settling; schedule it anyway
+  if (!audio || !out || (audio.state !== 'running' && performance.now() - resumedAt > 400)) return
+  const now = audio.currentTime
+  const t = Math.max(now + 0.002, nextAt)
+  if (t - now > MAX_AHEAD) return
+  nextAt = t + MIN_GAP
+  const data = renderClick(audio.sampleRate)
+  const buf = audio.createBuffer(1, data.length, audio.sampleRate)
+  buf.copyToChannel(data as Float32Array<ArrayBuffer>, 0)
   const src = audio.createBufferSource(); src.buffer = buf
-  const bp = audio.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 3200; bp.Q.value = 1.4
-  const g = audio.createGain(); g.gain.setValueAtTime(0.09, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.03)
-  src.connect(bp).connect(g).connect(audio.destination)
-  src.start(t); src.stop(t + 0.04)
+  const g = audio.createGain(); g.gain.value = 0.85 + Math.random() * 0.3 // ±15% level
+  src.connect(g).connect(out)
+  src.start(t)
+}
+/** a tiny tap on android (ios has no vibration api); only once the page has had a gesture */
+let lastBuzz = 0
+function buzz() {
+  const now = performance.now()
+  if (now - lastBuzz < 45 || typeof navigator.vibrate !== 'function') return
+  const ua = (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation
+  if (ua && !ua.hasBeenActive) return
+  lastBuzz = now
+  try { navigator.vibrate(10) } catch { /* not allowed */ }
 }
 
 function indexFromHash() {
@@ -54,15 +92,6 @@ export default function App() {
   const reducedAtStart = useRef(matchMedia('(prefers-reduced-motion: reduce)').matches)
   const [frameAnim] = useState(() => !reducedAtStart.current)
   const [frameDrawn, setFrameDrawn] = useState(() => reducedAtStart.current)
-  const [sound, setSound] = useState(() => { try { return localStorage.getItem('scale-tour-sound') === 'on' } catch { return false } })
-  const toggleSound = useCallback(() => {
-    setSound((v) => {
-      const nv = !v
-      try { localStorage.setItem('scale-tour-sound', nv ? 'on' : 'off') } catch { /* private mode */ }
-      if (nv) { audio ??= new AudioContext(); audio.resume(); tick() }
-      return nv
-    })
-  }, [])
   const [ui, setUi] = useState(() => { const v = viewport(); return uiScale(v.w - v.m * 2, v.h - v.m * 2) })
 
   const go = useCallback((i: number) => {
@@ -142,6 +171,12 @@ export default function App() {
       if (target.current !== lastPrefetch) { lastPrefetch = target.current; scene.prefetch(target.current) }
       const r = clamp(Math.round(pos.current), 0, N - 1)
       if (r !== shown) {
+        // one click (and tap) per slide passed, once the tour is up
+        if (shown >= 0 && loadedRef.current) {
+          const steps = Math.min(Math.abs(r - shown), 4)
+          for (let k = 0; k < steps; k++) click()
+          buzz()
+        }
         shown = r
         setActive(r)
         history.replaceState(null, '', `#${BODIES[r].id}`)
@@ -165,13 +200,20 @@ export default function App() {
   }, [frameDrawn])
   useEffect(() => { if (ready && frameDrawn) setLoaded(true) }, [ready, frameDrawn])
 
-  // optional tick on each slide step
-  const lastTick = useRef(active)
+  const loadedRef = useRef(false)
+  useEffect(() => { loadedRef.current = loaded }, [loaded])
+
+  // the first real gesture unlocks audio; keep listening until it's actually running
   useEffect(() => {
-    if (active === lastTick.current) return
-    lastTick.current = active
-    if (sound && loaded) tick()
-  }, [active, sound, loaded])
+    try { localStorage.removeItem('scale-tour-sound') } catch { /* private mode */ }
+    const evs = ['pointerdown', 'pointerup', 'keydown', 'touchstart', 'touchend', 'wheel', 'click'] as const
+    const onGesture = () => {
+      unlockAudio()
+      if (audio?.state === 'running') evs.forEach((e) => removeEventListener(e, onGesture, true))
+    }
+    evs.forEach((e) => addEventListener(e, onGesture, { capture: true, passive: true }))
+    return () => evs.forEach((e) => removeEventListener(e, onGesture, true))
+  }, [])
 
   // keyboard
   useEffect(() => {
@@ -339,13 +381,10 @@ export default function App() {
               </a>
               <p className="mt-1.5 text-fog">scale tour</p>
             </div>
-            {/* top-right: counter + sound */}
-            <div className="absolute right-5 top-5 flex flex-col items-end gap-1.5 md:right-7 md:top-7">
-              <p aria-hidden><span className="text-fog">[</span><span className="text-paper">{pad2(active + 1)}</span><span className="text-fog">/{pad2(N)}]</span></p>
-              <button onClick={toggleSound} className="pointer-events-auto text-fog transition-colors hover:text-paper" aria-pressed={sound}>
-                sound <span className={sound ? 'text-paper' : ''}>[{sound ? 'on' : 'off'}]</span>
-              </button>
-            </div>
+            {/* top-right: just the counter now, centered on the wordmark's line */}
+            <p aria-hidden className="absolute right-5 top-5 leading-6 md:right-7 md:top-7">
+              <span className="text-fog">[</span><span className="text-paper">{pad2(active + 1)}</span><span className="text-fog">/{pad2(N)}]</span>
+            </p>
 
             {/* info panel: swaps instantly */}
             <section
