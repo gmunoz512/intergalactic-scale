@@ -67,3 +67,15 @@ edge, ic 1101's halo, the oort cloud's edge, andromeda's size) — notes are in 
 - kepler-22b (surface unknown), the black holes, segue 2 and ic 1101 are procedural illustrations
 - the sun and stars, the milky way and andromeda are procedural illustrations
   (no imagery), styled after eso / hubble / amateur astrophotography references
+
+## credits
+
+- planet maps: [solar system scope](https://www.solarsystemscope.com/textures/), cc by 4.0 (based on nasa data; ceres & makemake are their illustrative maps)
+- pluto: nasa/jhuapl/swri (new horizons), unimaged south filled in · europa: usgs voyager/galileo mosaic · titan: nasa/jpl-caltech/ssi (cassini), toned to its haze — public domain
+- helix nebula: eso — cc by 4.0 · horsehead nebula: nasa, esa & the hubble heritage team (aura/stsci) — cc by 4.0
+- pillars of creation: nasa, esa, csa, stsci; j. depasquale, a. koekemoer, a. pagan (stsci) — webb, cc by 4.0
+- tarantula nebula: nasa, esa, eso, d. lennon & e. sabbi (esa/stsci) et al. — hubble, cc by 4.0 · black eye galaxy (m64): nasa, esa, hubble (2026 wfc3 image) — public domain
+- the pillars, the tarantula & m64 are rebuilt as 3d point clouds from those images (depth is an artistic reconstruction, not measured) · andromeda & ic 1101 are procedural 3d particle renders
+- orion nebula: nasa, esa, m. robberto (stsci/esa) & the hubble orion treasury project team — public domain
+- omega centauri: eso/inaf-vst/omegacam, a. grado, l. limatola — cc by 4.0
+- kepler-22b, the black holes (live lensed ray march), segue 2, the sun & stars, the milky way, the heliosphere, oort cloud, superclusters & the observable universe are live procedural renders (illustrations, styled after eso, hubble & amateur astrophotos). sizes & sources in the repo’s src/data.ts.

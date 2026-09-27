@@ -46,7 +46,6 @@ export default function App() {
   const sceneRef = useRef<Scene | null>(null)
   const rotating = useRef<null | { i: number; x: number; y: number; t: number; rs: number; id: number }>(null)
   const [active, setActive] = useState(initial.current)
-  const [credits, setCredits] = useState(false)
   // first load: hold on ink until textures + shaders + fonts are ready, then fade in
   const [loaded, setLoaded] = useState(false)
   const [ready, setReady] = useState(false)
@@ -364,26 +363,6 @@ export default function App() {
               {body.note && <p className="mt-2 hidden font-mono text-[11px] leading-relaxed tracking-[0.02em] text-fog md:block">{body.note}</p>}
             </section>
 
-            {credits && (
-              <div className="pointer-events-auto absolute bottom-20 left-5 right-5 z-10 max-w-md rounded-[10px] border border-line bg-ink-raised/95 p-5 font-mono text-[11px] leading-relaxed tracking-[0.02em] text-mist md:left-7 md:right-auto">
-                <div className="flex items-baseline justify-between">
-                  <p className="font-mono text-[13px] text-paper">credits</p>
-                  <button onClick={() => setCredits(false)} className="font-mono text-[11px] tracking-[0.05em] text-fog hover:text-paper">[close]</button>
-                </div>
-                <ul className="mt-3 space-y-1.5">
-                  <li>planet maps: <a className="text-paper-dim underline decoration-line underline-offset-2 hover:text-accent" href="https://www.solarsystemscope.com/textures/">solar system scope</a>, cc by 4.0 (based on nasa data; ceres &amp; makemake are their illustrative maps)</li>
-                  <li>pluto: nasa/jhuapl/swri (new horizons), unimaged south filled in · europa: usgs voyager/galileo mosaic · titan: nasa/jpl-caltech/ssi (cassini), toned to its haze — public domain</li>
-                  <li>helix nebula: eso — cc by 4.0 · horsehead nebula: nasa, esa &amp; the hubble heritage team (aura/stsci) — cc by 4.0</li>
-                  <li>pillars of creation: nasa, esa, csa, stsci; j. depasquale, a. koekemoer, a. pagan (stsci) — webb, cc by 4.0</li>
-                  <li>tarantula nebula: nasa, esa, eso, d. lennon &amp; e. sabbi (esa/stsci) et al. — hubble, cc by 4.0 · black eye galaxy (m64): nasa, esa, hubble (2026 wfc3 image) — public domain</li>
-                  <li>the pillars, the tarantula &amp; m64 are rebuilt as 3d point clouds from those images (depth is an artistic reconstruction, not measured) · andromeda &amp; ic 1101 are procedural 3d particle renders</li>
-                  <li>orion nebula: nasa, esa, m. robberto (stsci/esa) &amp; the hubble orion treasury project team — public domain</li>
-                  <li>omega centauri: eso/inaf-vst/omegacam, a. grado, l. limatola — cc by 4.0</li>
-                  <li>kepler-22b, the black holes (live lensed ray march), segue 2, the sun &amp; stars, the milky way, the heliosphere, oort cloud, superclusters &amp; the observable universe are live procedural renders (illustrations, styled after eso, hubble &amp; amateur astrophotos). sizes &amp; sources in the repo’s src/data.ts.</li>
-                </ul>
-                <p className="mt-3 text-fog">made by german, for fun. images are toned to fit the page.</p>
-              </div>
-            )}
 
             {/* bottom: progress rail + hints + nav */}
             <footer className="pointer-events-auto absolute inset-x-5 bottom-5 md:inset-x-7 md:bottom-7">
@@ -403,11 +382,7 @@ export default function App() {
                 ))}
               </div>
               <div className="mt-3.5 flex items-center justify-between">
-                <p className="text-fog">
-                  <button onClick={() => setCredits((v) => !v)} className="text-fog transition-colors hover:text-paper" aria-expanded={credits}>
-                    credits
-                  </button>
-                </p>
+                <span aria-hidden />
                 <div className="flex items-center gap-1">
                   <NavButton label="previous" disabled={active === 0} onClick={() => step(-1)}>[←]</NavButton>
                   <NavButton label="next" disabled={active === N - 1} onClick={() => step(1)}>[→]</NavButton>
