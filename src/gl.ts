@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import type { Body } from './data'
+import { makeCloud, type CloudKind } from './cloud'
 
 const BASE = import.meta.env.BASE_URL + 'tex/'
 
@@ -14,7 +15,9 @@ type GalaxyPal = { gold: V3; grey: V3; blue: V3; dust: V3; knot: V3; warm: V3; w
 /** satellite: x, y (radii), rx, ry, angle, brightness */
 type Sat = [number, number, number, number, number, number]
 type GalaxySpec = { type: 'galaxy'; arms: number; pitch: number; bar: number; bulge: number; dust: number; seed: number; floc: number; clump: number; ring: number; tilt: number; pa: number; pal?: GalaxyPal; sats?: Sat[]; field?: number }
-type Spec = PlanetSpec | StarSpec | ImageSpec | ProcSpec | GalaxySpec | BHSpec
+/** true 3d point-sprite objects (see cloud.ts) */
+type CloudSpec = { type: 'cloud'; kind: CloudKind }
+type Spec = PlanetSpec | StarSpec | ImageSpec | ProcSpec | GalaxySpec | BHSpec | CloudSpec
 
 const SPECS: Record<string, Spec> = {
   ceres: { type: 'planet', tex: 'ceres', hi: true, spin: 0.03 },
@@ -55,25 +58,28 @@ const SPECS: Record<string, Spec> = {
   oort: { type: 'proc', kind: 'oort' },
   // fill = object diameter / image width. mask = ellipse radii (uv units, 0.5 = edge)
   helix: { type: 'image', src: 'helix.webp', fill: 0.6, aspect: 1, mask: [0.48, 0.48], sat: 0.95, gain: 1.0 },
-  pillars: { type: 'image', src: 'pillars.webp', fill: 1.1, aspect: 2560 / 2053, mask: [0.47, 0.48], sat: 0.9, gain: 0.95 },
+  pillars: { type: 'cloud', kind: 'pillars' },
   horsehead: { type: 'image', src: 'horsehead.webp', fill: 0.9, aspect: 2560 / 2449, mask: [0.48, 0.48], sat: 0.95, gain: 1.0 },
   orion: { type: 'image', src: 'orion.webp', fill: 1.0, aspect: 1, mask: [0.5, 0.5], sat: 0.85, gain: 0.95 },
   omega: { type: 'image', src: 'omega.webp', fill: 0.62, aspect: 1, mask: [0.46, 0.46], sat: 0.8, gain: 1.05 },
   segue2: { type: 'proc', kind: 'dwarf' },
-  tarantula: { type: 'image', src: 'tarantula.webp', fill: 1.0, aspect: 2048 / 2560, mask: [0.49, 0.47], sat: 0.9, gain: 1.0 },
-  m64: { type: 'image', src: 'm64.webp', fill: 0.82, aspect: 2560 / 2422, mask: [0.48, 0.48], sat: 0.95, gain: 1.05 },
+  tarantula: { type: 'cloud', kind: 'tarantula' },
+  m64: { type: 'cloud', kind: 'm64' },
   milkyway: { type: 'galaxy', arms: 2, pitch: 0.24, bar: 1, bulge: 0.15, dust: 1.15, seed: 3.1, floc: 0.55, clump: 1, ring: 0, tilt: -0.95, pa: 0.5 },
-  andromeda: {
+  andromeda: { type: 'cloud', kind: 'andromeda' },
+  ic1101: { type: 'cloud', kind: 'ic1101' },
+  virgo: { type: 'proc', kind: 'supercluster' },
+  laniakea: { type: 'proc', kind: 'laniakea' },
+  universe: { type: 'proc', kind: 'universe' },
+}
+
+/** the old shader andromeda, still used inside the local-group view */
+const ANDROMEDA_GAL: GalaxySpec = {
     type: 'galaxy', arms: 2, pitch: 0.12, bar: 0, bulge: 0.2, dust: 1.25, seed: 7.7, floc: 0.6, clump: 0.9, ring: 0.8, tilt: -1.34, pa: -0.62,
     pal: { gold: [1.0, 0.9, 0.74], grey: [0.66, 0.6, 0.96], blue: [0.72, 0.62, 1.0], dust: [0.5, 0.2, 0.12], knot: [1.0, 0.42, 0.78], warm: [1.0, 0.8, 0.62], warmR: 0.6, knotAmt: 1.0, gain: 1.7 },
     // m32 (compact, upper right of the disc) and m110 (larger, soft, lower left)
     sats: [[0.2, 0.3, 0.035, 0.03, 0, 1.6], [-0.42, -0.55, 0.11, 0.065, 0.9, 0.9]],
     field: 1,
-  },
-  ic1101: { type: 'proc', kind: 'elliptical' },
-  virgo: { type: 'proc', kind: 'supercluster' },
-  laniakea: { type: 'proc', kind: 'laniakea' },
-  universe: { type: 'proc', kind: 'universe' },
 }
 
 /** how far past radiusKm the visible thing reaches (for spacing) */
@@ -136,7 +142,7 @@ float fbm(vec3 p){ float a=0.5, s=0.0; for(int i=0;i<5;i++){ s+=a*snoise(p); p*=
 
 /** additive-looking glow that still writes valid premultiplied alpha, so the
  * transparent webgl canvas composites cleanly over the starfield canvas */
-function glow<T extends THREE.Material>(m: T): T {
+export function glow<T extends THREE.Material>(m: T): T {
   m.blending = THREE.CustomBlending
   m.blendEquation = THREE.AddEquation
   m.blendSrc = THREE.OneFactor
@@ -146,7 +152,7 @@ function glow<T extends THREE.Material>(m: T): T {
   m.premultipliedAlpha = true
   return m
 }
-const PREMUL = `vec4 premul(vec3 c, float o){ c *= o; return vec4(c, clamp(max(c.r, max(c.g, c.b)), 0.0, 1.0)); }\n`
+export const PREMUL = `vec4 premul(vec3 c, float o){ c *= o; return vec4(c, clamp(max(c.r, max(c.g, c.b)), 0.0, 1.0)); }\n`
 
 // ---------- shared resources ----------
 let SPHERE: THREE.SphereGeometry | null = null
@@ -171,6 +177,10 @@ export interface BodyObj {
   dot: string
   /** labels in body units (x, y, radius) drawn on the 2d overlay when current */
   labels?: { x: number; y: number; r: number; name: string; major?: boolean; left?: boolean }[]
+  /** rotation limits [yaw, pitch] (radians) for things that only hold up from the front */
+  limit?: [number, number]
+  /** free gpu buffers while far from the current slide (rebuilt on demand) */
+  sleep?: () => void
 }
 
 function track(obj: BodyObj, m: THREE.Material & { opacity: number }) {
@@ -1327,8 +1337,8 @@ function makeProc(b: Body, spec: ProcSpec): BodyObj {
       }
       const MW: [number, number] = [-0.2, -0.12], M31: [number, number] = [0.25, 0.12]
       gal('milkyway', MW[0], MW[1], 0.01, SPECS.milkyway as GalaxySpec)
-      gal('andromeda', M31[0], M31[1], 0.0152, SPECS.andromeda as GalaxySpec)
-      gal('triangulum', M31[0] + 0.1, M31[1] - 0.08, 0.006, { type: 'galaxy', arms: 2, pitch: 0.4, bar: 0, bulge: 0.06, dust: 0.6, seed: 5.3, floc: 0.9, clump: 1.2, ring: 0, tilt: -0.9, pa: 0.4, pal: { ...(SPECS.andromeda as GalaxySpec).pal!, grey: [0.62, 0.68, 0.9], knot: [1, 0.35, 0.5], gold: [1, 0.92, 0.8] } })
+      gal('andromeda', M31[0], M31[1], 0.0152, ANDROMEDA_GAL)
+      gal('triangulum', M31[0] + 0.1, M31[1] - 0.08, 0.006, { type: 'galaxy', arms: 2, pitch: 0.4, bar: 0, bulge: 0.06, dust: 0.6, seed: 5.3, floc: 0.9, clump: 1.2, ring: 0, tilt: -0.9, pa: 0.4, pal: { ...ANDROMEDA_GAL.pal!, grey: [0.62, 0.68, 0.9], knot: [1, 0.35, 0.5], gold: [1, 0.92, 0.8] } })
       // dwarfs: [x, y, r, kind, brightness, aspect, angle]
       const dw: [number, number, number, number, number, number?, number?][] = [
         [MW[0] + 0.018, MW[1] - 0.028, 0.0014, 1, 1.2, 0.8, 0.3], // lmc
@@ -1515,6 +1525,13 @@ function makeProc(b: Body, spec: ProcSpec): BodyObj {
 // ---------- scene ----------
 export class GLScene {
   static dpr = 1
+  /** shared with the point-cloud objects (they render into their own targets) */
+  static renderer: THREE.WebGLRenderer | null = null
+  static vw = 1
+  static vh = 1
+  /** adaptive quality multiplier from Scene (1 = full) */
+  static quality = 1
+  static maxPoint = 64
   renderer: THREE.WebGLRenderer
   scene = new THREE.Scene()
   camera = new THREE.OrthographicCamera(-1, 1, 1, -1, -10, 10)
@@ -1528,11 +1545,20 @@ export class GLScene {
   }
   private static qa = new THREE.Quaternion()
   private static ax = new THREE.Vector3()
-  private turn(rot: THREE.Group, ax: number, ay: number) {
+  private turn(rot: THREE.Group, ax: number, ay: number, limit?: [number, number]): [boolean, boolean] {
+    if (limit) {
+      // yaw / pitch with hard stops; returns which axes hit a stop so inertia can die there
+      const u = rot.userData as { yaw?: number; pitch?: number }
+      const y0 = (u.yaw ?? 0) + ax, p0 = (u.pitch ?? 0) + ay
+      u.yaw = Math.max(-limit[0], Math.min(limit[0], y0))
+      u.pitch = Math.max(-limit[1], Math.min(limit[1], p0))
+      return [u.yaw !== y0, u.pitch !== p0]
+    }
     // screen-space trackball: horizontal drag spins about screen-up, vertical about screen-right
     const q = GLScene.qa
     if (ax) { q.setFromAxisAngle(GLScene.ax.set(0, 1, 0), ax); rot.quaternion.premultiply(q) }
     if (ay) { q.setFromAxisAngle(GLScene.ax.set(1, 0, 0), ay); rot.quaternion.premultiply(q) }
+    return [false, false]
   }
   /** can this body be grabbed? 'rotate' for spheres, 'tilt' for flat things */
   grabKind(i: number): 'rotate' | 'tilt' | null {
@@ -1551,7 +1577,7 @@ export class GLScene {
     s.last = this.now
     if (o.rot) {
       const ax = dx / Math.max(rs, 40), ay = dy / Math.max(rs, 40)
-      this.turn(o.rot, ax, ay)
+      this.turn(o.rot, ax, ay, o.limit)
       const k = Math.min(1, dt * 18)
       s.vx += (ax / Math.max(dt, 1 / 240) - s.vx) * k
       s.vy += (ay / Math.max(dt, 1 / 240) - s.vy) * k
@@ -1578,6 +1604,12 @@ export class GLScene {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
     this.renderer.toneMappingExposure = 1.15
     maxAniso = this.renderer.capabilities.getMaxAnisotropy()
+    GLScene.renderer = this.renderer
+    try {
+      const gl = this.renderer.getContext()
+      const r = gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE) as Float32Array
+      GLScene.maxPoint = Math.max(8, Math.min(256, r?.[1] ?? 64))
+    } catch { /* keep the default */ }
     // hard space light: one strong key, almost no fill, so night sides fall to black
     const key = new THREE.DirectionalLight(0xfff8ee, 3.7)
     key.position.set(-1, 0.75, 0.85)
@@ -1588,6 +1620,7 @@ export class GLScene {
   resize(w: number, h: number, dpr: number) {
     this.w = w; this.h = h
     GLScene.dpr = dpr
+    GLScene.vw = w; GLScene.vh = h
     this.renderer.setPixelRatio(dpr)
     this.renderer.setSize(w, h, false)
   }
@@ -1597,7 +1630,7 @@ export class GLScene {
     if (!o) {
       const b = this.bodies[i]
       const spec = SPECS[b.id]
-      o = spec.type === 'planet' ? makePlanet(b, spec) : spec.type === 'star' ? makeStar(b, spec) : spec.type === 'image' ? makeImage(b, spec) : spec.type === 'galaxy' ? makeGalaxy(b, spec) : spec.type === 'bh' ? makeBlackHole(b, spec) : makeProc(b, spec)
+      o = spec.type === 'planet' ? makePlanet(b, spec) : spec.type === 'star' ? makeStar(b, spec) : spec.type === 'image' ? makeImage(b, spec) : spec.type === 'galaxy' ? makeGalaxy(b, spec) : spec.type === 'bh' ? makeBlackHole(b, spec) : spec.type === 'cloud' ? makeCloud(b, spec.kind, []) : makeProc(b, spec)
       o.group.visible = false
       this.scene.add(o.group)
       this.objs.set(i, o)
@@ -1714,7 +1747,9 @@ export class GLScene {
       const st = this.state(it.i)
       if (o.rot && !st.dragging && (st.vx || st.vy)) {
         // inertia with damping
-        this.turn(o.rot, st.vx * dt, st.vy * dt)
+        const [hx, hy] = this.turn(o.rot, st.vx * dt, st.vy * dt, o.limit)
+        if (hx) st.vx = 0
+        if (hy) st.vy = 0
         const damp = Math.exp(-dt * 2.4)
         st.vx *= damp; st.vy *= damp
         if (Math.abs(st.vx) + Math.abs(st.vy) < 0.002) { st.vx = 0; st.vy = 0 }
@@ -1732,6 +1767,8 @@ export class GLScene {
       maxR = Math.max(maxR, it.rs * 3)
       z += 0 // bodies never overlap in xy, so a shared depth is fine
     }
+    // point clouds hold big gpu buffers: let go of them a few slides away
+    for (const [j, o] of this.objs) if (o.sleep && Math.abs(j - current) > 3) o.sleep()
     const c = this.camera
     c.left = -this.w / 2; c.right = this.w / 2; c.top = this.h / 2; c.bottom = -this.h / 2
     c.near = -maxR * 1.1; c.far = maxR * 1.1

@@ -376,9 +376,10 @@ export default function App() {
                   <li>helix nebula: eso — cc by 4.0 · horsehead nebula: nasa, esa &amp; the hubble heritage team (aura/stsci) — cc by 4.0</li>
                   <li>pillars of creation: nasa, esa, csa, stsci; j. depasquale, a. koekemoer, a. pagan (stsci) — webb, cc by 4.0</li>
                   <li>tarantula nebula: nasa, esa, eso, d. lennon &amp; e. sabbi (esa/stsci) et al. — hubble, cc by 4.0 · black eye galaxy (m64): nasa, esa, hubble (2026 wfc3 image) — public domain</li>
+                  <li>the pillars, the tarantula &amp; m64 are rebuilt as 3d point clouds from those images (depth is an artistic reconstruction, not measured) · andromeda &amp; ic 1101 are procedural 3d particle renders</li>
                   <li>orion nebula: nasa, esa, m. robberto (stsci/esa) &amp; the hubble orion treasury project team — public domain</li>
                   <li>omega centauri: eso/inaf-vst/omegacam, a. grado, l. limatola — cc by 4.0</li>
-                  <li>kepler-22b, the black holes (live lensed ray march), segue 2, ic 1101, the sun &amp; stars, the milky way, andromeda, the heliosphere, oort cloud, superclusters &amp; the observable universe are live procedural renders (illustrations, styled after eso, hubble &amp; amateur astrophotos). sizes &amp; sources in the repo’s src/data.ts.</li>
+                  <li>kepler-22b, the black holes (live lensed ray march), segue 2, the sun &amp; stars, the milky way, the heliosphere, oort cloud, superclusters &amp; the observable universe are live procedural renders (illustrations, styled after eso, hubble &amp; amateur astrophotos). sizes &amp; sources in the repo’s src/data.ts.</li>
                 </ul>
                 <p className="mt-3 text-fog">made by german, for fun. images are toned to fit the page.</p>
               </div>

@@ -41,6 +41,9 @@ export class Scene {
 
   /** depth of field (off on phones and once adaptive quality kicks in) */
   dofOn = true
+  /** the observable universe keeps slowly expanding while you look at it */
+  private expand = 1
+  private expandT = 0
   /** current ui accent (rgb 0-255), eased toward the slide's accent */
   private acc: number[] | null = null
   private static rgb(h: string) { return [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) }
@@ -74,6 +77,7 @@ export class Scene {
     if (this.dofOn) { this.dofOn = false; this.bgCanvas.style.filter = ''; return true }
     if (pickDpr(this.w, this.h) * this.quality <= 1.01) return false
     this.quality *= 0.8
+    GLScene.quality = this.quality
     this.resize(this.w, this.h)
     return true
   }
@@ -137,6 +141,21 @@ export class Scene {
 
     const cur = Math.round(s)
     const settle = Math.max(0, 1 - Math.abs(s - cur) * 3)
+    // universe: ~1.5% per 10s at first, easing toward a 6% cap (clear of the text and frame);
+    // eases back once you leave, so it's fresh on the next visit
+    if (bodies[cur].id === 'universe' && settle > 0.98 && !this.reduced) {
+      this.expandT += dt
+      const ease = Math.min(1, this.expandT / 4)
+      // hard cap: the ring (1.1·r + 8px) must stay inside the frame on any viewport
+      const mob = w < 768
+      const room = mob ? Math.min(cx, w - cx, cy) - 20 : Math.min(cy, h - cy, w - cx) - 48
+      const cap = Math.max(0, Math.min(0.06, (room - 8) / (1.1 * base) - 1))
+      const target = 1 + cap * (1 - Math.exp(-this.expandT / 40))
+      this.expand += (target - this.expand) * ease * ease
+    } else {
+      this.expandT = 0
+      this.expand = 1 + (this.expand - 1) * Math.exp(-dt / 0.25)
+    }
     const diag = Math.hypot(w, h)
     const o = this.octx
     o.setTransform(this.dpr, 0, 0, this.dpr, 0, 0)
@@ -147,7 +166,7 @@ export class Scene {
       const d = i - s
       const alpha = d <= 0 ? 1 : d < 1 ? TEASE + (1 - TEASE) * (1 - d) : d < 2 ? TEASE * (2 - d) : 0
       if (alpha <= 0.001) continue
-      const rs = bodies[i].radiusKm * k
+      const rs = bodies[i].radiusKm * k * (bodies[i].id === 'universe' ? this.expand : 1)
       if (rs < 0.04) continue
       const off = (rel[i] - camRel) * k
       const x = cx + DIR[0] * off
