@@ -64,14 +64,30 @@ export default function App() {
   }, [])
   const [ui, setUi] = useState(() => { const v = viewport(); return uiScale(v.w - v.m * 2, v.h - v.m * 2) })
 
+  // queued single steps (arrow taps / keys): each accepted tap moves exactly one slide,
+  // released one at a time so rapid taps never fly past several bodies at once
+  const pending = useRef(0)
   const go = useCallback((i: number) => {
+    pending.current = 0
     target.current = clamp(Math.round(i), 0, N - 1)
     if (reduced.current) {
       pos.current = target.current
       vel.current = 0
     }
   }, [])
-  const step = useCallback((d: number) => go(target.current + d), [go])
+  const step = useCallback((d: number) => {
+    if (dragging.current) return
+    const settled = Math.abs(target.current - pos.current) < 0.5
+    if (reduced.current || (settled && pending.current === 0)) {
+      const t = clamp(target.current + d, 0, N - 1)
+      target.current = t
+      if (reduced.current) { pos.current = t; vel.current = 0 }
+      return
+    }
+    // mid-flight: queue, one queued step per tap; reversing cancels the queue
+    if (Math.sign(pending.current) === -Math.sign(d)) { pending.current = 0; return }
+    pending.current = clamp(pending.current + d, -N, N)
+  }, [])
 
   // render loop + physics
   useEffect(() => {
@@ -138,7 +154,15 @@ export default function App() {
         if (slowFrames / frames > 0.5 && now - slowT > 3000) { scene.lowerQuality(); slowT = now }
         sampleT = 0; frames = 0; slowFrames = 0
       }
-      if (target.current !== lastPrefetch) { lastPrefetch = target.current; scene.prefetch(target.current) }
+      // release the next queued step once the current glide is nearly home
+      if (pending.current !== 0 && !dragging.current && Math.abs(target.current - pos.current) < 0.15) {
+        const d = Math.sign(pending.current)
+        const t = clamp(target.current + d, 0, N - 1)
+        pending.current = t === target.current ? 0 : pending.current - d
+        target.current = t
+      }
+      const near = dragging.current ? clamp(Math.round(pos.current), 0, N - 1) : target.current
+      if (near !== lastPrefetch) { lastPrefetch = near; scene.prefetch(near) }
       const r = clamp(Math.round(pos.current), 0, N - 1)
       if (r !== shown) {
         shown = r
@@ -173,9 +197,14 @@ export default function App() {
   }, [active, sound, loaded])
 
   // keyboard
+  const k0 = (k: string) => ['ArrowRight','ArrowDown','PageDown',' ','j','ArrowLeft','ArrowUp','PageUp','k'].includes(k)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return
+      // held keys auto-repeat; one press = one slide
+      if (e.repeat && k0(e.key)) { e.preventDefault(); return }
+      // let a focused button handle its own enter/space (no double fire)
+      if ((e.key === ' ' || e.key === 'Enter') && (e.target as Element)?.closest?.('button')) return
       const k = e.key
       if (k === 'ArrowRight' || k === 'ArrowDown' || k === 'PageDown' || k === ' ' || k === 'j') { e.preventDefault(); step(1) }
       else if (k === 'ArrowLeft' || k === 'ArrowUp' || k === 'PageUp' || k === 'k') { e.preventDefault(); step(-1) }
@@ -235,6 +264,7 @@ export default function App() {
       return
     }
     setCursor('grabbing')
+    pending.current = 0
     dragging.current = { x: e.clientX, y: e.clientY, start: pos.current, axis: 0, lastT: performance.now(), lastP: pos.current, v: 0 }
     vel.current = 0
   }
