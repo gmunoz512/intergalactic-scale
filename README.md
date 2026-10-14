@@ -7,15 +7,10 @@ size next to it — sometimes just a dot.
 inspired by the disc carousel at a24.raviklaassens.com, dressed in german+ colors.
 
 - vite + react + typescript + tailwind v4
-- three.js (webgl) spheres with real texture maps for planets; shader stars with boiling
-  multi-scale turbulence, crisp cellular granulation, active regions with loop filaments,
-  sunspots (sun), limb darkening with a bright rim, a tight saturated corona, and animated 3d
-  flares that emerge from their footpoints, rise, stream, then drain or erupt (a few alive per
-  star, sized by type; static under reduced motion), tinted by spectral type; toned public imagery for the orion nebula and omega
-  centauri, the helix, the pillars of creation (webb), the horsehead, the tarantula and the black eye
-  galaxy (m64); live lensed black holes (sagittarius a*, s5 0014+81, ton 618: a per-pixel schwarzschild
-  ray march with a thin disk sampled at every plane crossing, doppler beaming, keplerian flow, a photon
-  ring and a quasar glow; drag to tilt them); live procedural shader galaxies (a barred milky way, andromeda with m32/m110) and point-cloud renders for the largest structures
+- three.js (webgl) planets with real texture maps
+- shader stars: turbulence, granulation, sunspots, limb darkening, corona and animated flares, tinted by spectral type
+- live lensed black holes (sagittarius a*, s5 0014+81, ton 618) via a per-pixel schwarzschild ray march; drag to tilt
+- procedural shader galaxies (milky way, andromeda), public imagery for nebulae and clusters, point clouds for the largest structures
 - drag (or touch) the current body to spin it: trackball rotation with inertia, auto-spin
   resumes after a few idle seconds; dragging empty space still changes slides
 - renders at device pixel ratio (up to 3, capped around a 4k×1.6 pixel budget) with adaptive
